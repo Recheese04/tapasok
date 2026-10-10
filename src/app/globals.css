@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --background: #eff0f6;
+  --surface: #ffffff;
+  --sidebar: #f4f1fc;
+  --border: #e4e6ef;
+  --foreground: #1c2033;
+  --muted: #667085;
+  --primary: #6a2bd8;
+  --primary-hover: #5a22bd;
+  --primary-soft: #efe8fc;
+  --primary-foreground: #ffffff;
+  --success: #1f8a58;
+  --warning: #b26a00;
+  --danger: #c93a3a;
+  --shadow-card: 0 1px 2px rgba(28, 32, 51, 0.04), 0 4px 14px rgba(28, 32, 51, 0.05);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-sidebar: var(--sidebar);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: var(--primary-foreground);
+  --shadow-card: var(--shadow-card);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a, button, summary, input, select, textarea { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+}
+
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }

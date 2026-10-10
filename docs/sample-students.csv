@@ -1,0 +1,4 @@
+student_number,first_name,last_name,email,middle_name,program_code,year_level,rfid_uid,contact_number,street_address,region_code,province_code,city_code,barangay_code,account_type,employee_id,college_code,department_code,job_title
+2024-0001,Juan,Dela Cruz,juan.delacruz@example.test,Santos,DEMO-BSIT,2,04A1B2C3,09171234567,12 Rizal St,030000000,035400000,035408000,035408001,STUDENT,,,,
+2024-0002,Maria,Reyes,maria.reyes@example.test,,DEMO-BSIT,1,,09181234567,,030000000,035400000,035408000,035408002,STUDENT,,,,
+2024-0003,Pedro,Garcia,pedro.garcia@example.test,,,,,,,,,,,STUDENT,,,,
