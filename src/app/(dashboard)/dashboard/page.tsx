@@ -26,7 +26,7 @@ export default async function DashboardPage() {
         <PageHeader
           title={greeting}
           subtitle="System administration overview."
-          actions={<><ButtonLink href="/users/new">+ New account</ButtonLink><ButtonLink href="/organizations/new" variant="secondary">+ New organization</ButtonLink></>}
+          actions={<><ButtonLink href="/users?new=STUDENT">+ New account</ButtonLink><ButtonLink href="/organizations?new=1" variant="secondary">+ New organization</ButtonLink></>}
         />
         <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Accounts" value={s.users} href="/users" icon={<Icon name="users" />} />

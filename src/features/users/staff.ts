@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/database/client";
 import { staffFieldsSchema, type StaffFields } from "@/lib/validation/staff";
 import { newActivationToken, setupPath } from "@/features/auth/activation";
-import { makeUnusableHash } from "@/lib/auth/unusable";
+import { newAccountCredential, type NewCredential } from "@/lib/auth/unusable";
 
 // Faculty / staff accounts. Same model as students: one login account (users) plus a profile row, with organization
 // positions held separately. Creating a staff account never grants any position or privilege.
@@ -35,21 +35,22 @@ async function duplicate(f: Pick<StaffFields, "employeeId" | "email">, exceptUse
 }
 
 /** Creates a password-less (INVITED) staff account and a one-time setup link. */
-export async function createStaff(actorId: string, fields: StaffFields, unusableHash?: string): Promise<{ ok: true; userId: string; setupPath: string } | Fail> {
+export async function createStaff(actorId: string, fields: StaffFields, credential?: NewCredential): Promise<{ ok: true; userId: string; setupPath: string | null; initialPassword: string | null } | Fail> {
   const bad = (await duplicate(fields)) ?? (await checkPlacement(fields));
   if (bad) return { ok: false, fieldErrors: bad };
+  const cred = credential ?? (await newAccountCredential());
   const t = newActivationToken();
   try {
     const user = await db.user.create({
       data: {
-        email: fields.email, passwordHash: unusableHash ?? (await makeUnusableHash()), firstName: fields.firstName, lastName: fields.lastName, status: "INVITED",
+        email: fields.email, passwordHash: cred.hash, firstName: fields.firstName, lastName: fields.lastName, status: cred.active ? "ACTIVE" : "INVITED",
         // systemRole stays USER; no organization position is created here.
         staffProfile: { create: { employeeId: fields.employeeId, middleName: fields.middleName ?? null, contactNumber: fields.contactNumber ?? null, collegeId: fields.collegeId ?? null, departmentId: fields.departmentId ?? null, jobTitle: fields.jobTitle ?? null } },
-        activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } },
+        ...(cred.active ? {} : { activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } } }),
       },
     });
     await db.auditLog.create({ data: { actorUserId: actorId, action: "staff.create", targetType: "user", targetId: user.id } });
-    return { ok: true, userId: user.id, setupPath: setupPath(t.token) };
+    return { ok: true, userId: user.id, setupPath: cred.active ? null : setupPath(t.token), initialPassword: cred.initialPassword };
   } catch (e) {
     if (isUnique(e)) return { ok: false, fieldErrors: (await duplicate(fields)) ?? { email: "An account with this email already exists." } };
     throw e;

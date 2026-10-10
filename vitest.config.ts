@@ -23,6 +23,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
       QR_SECRET: "test-only-qr-secret-0123456789abcdef0123456789",
+      DEFAULT_ACCOUNT_PASSWORD: "", // tests exercise the secure setup-link flow unless a test turns the default on
       STORAGE_DIR: path.resolve(__dirname, "tests/.tmp-storage"),
     },
   },

@@ -206,7 +206,7 @@ describe("CRUD: obligations, announcements, events and documents", () => {
     const { default: Orgs } = await import("@/app/(dashboard)/organizations/page");
     const { default: Join } = await import("@/app/(dashboard)/join/page");
     await signInAs(w.nobody.id);
-    expect(await Orgs()).toBeTruthy();
+    expect(await Orgs({ searchParams: Promise.resolve({}) })).toBeTruthy();
     expect(() => Join()).toThrow("NEXT_REDIRECT:/organizations");
   });
 });

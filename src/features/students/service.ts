@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/database/client";
-import { makeUnusableHash } from "@/lib/auth/unusable";
+import { newAccountCredential, type NewCredential } from "@/lib/auth/unusable";
 import { parseCsv } from "@/lib/csv";
 import { validateAddress, type ValidAddress } from "@/lib/psgc";
 import { studentFieldsSchema, type StudentFields } from "@/lib/validation/students";
@@ -59,21 +59,21 @@ export async function createStudent(
   actorId: string,
   fields: StudentFields,
   address: ValidAddress | null,
-  unusableHash?: string,
-): Promise<Result<{ userId: string; setupPath: string }>> {
+  credential?: NewCredential,
+): Promise<Result<{ userId: string; setupPath: string | null; initialPassword: string | null }>> {
   const dup = (await findDuplicate(fields)) ?? (await checkPlacement(fields));
   if (dup) return { ok: false, fieldErrors: dup };
 
-  const hash = unusableHash ?? (await makeUnusableHash());
+  const cred = credential ?? (await newAccountCredential());
   const t = newActivationToken();
   try {
     const user = await db.user.create({
       data: {
         email: fields.email,
-        passwordHash: hash,
+        passwordHash: cred.hash,
         firstName: fields.firstName,
         lastName: fields.lastName,
-        status: "INVITED",
+        status: cred.active ? "ACTIVE" : "INVITED",
         // systemRole defaults to USER; no membership or role is ever created here.
         studentProfile: {
           create: {
@@ -87,14 +87,14 @@ export async function createStudent(
             ...addressData(address),
           },
         },
-        activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } },
+        ...(cred.active ? {} : { activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } } }),
       },
     });
     await db.auditLog.create({
       data: { actorUserId: actorId, action: "student.create", targetType: "user", targetId: user.id },
     });
     await afterPlacementChange(user.id, fields);
-    return { ok: true, userId: user.id, setupPath: setupPath(t.token) };
+    return { ok: true, userId: user.id, setupPath: cred.active ? null : setupPath(t.token), initialPassword: cred.initialPassword };
   } catch (e) {
     if (isUnique(e)) return { ok: false, fieldErrors: (await findDuplicate(fields)) ?? { email: DUPLICATE.email } };
     throw e;
@@ -181,6 +181,7 @@ export type ImportSummary = {
   errors: ImportRowError[];
   ignoredColumns: string[];
   links: ImportLink[]; // one-time setup links; only present for real imports
+  initialPassword: string | null; // set when new accounts are created active with the shared default password
   preview: ImportPreviewRow[]; // the first rows with their result, so the file can be reviewed before confirming
 };
 
@@ -205,7 +206,7 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
   const seenNumbers = new Map<string, number>();
   const seenEmails = new Map<string, number>();
   const seenRfids = new Map<string, number>();
-  const unusable = dryRun ? "" : await makeUnusableHash();
+  const credential = dryRun ? undefined : await newAccountCredential(); // one hash for the whole file (hashing is slow)
   const colleges = new Map((await db.college.findMany({ where: { active: true }, select: { id: true, code: true } })).map((c) => [c.code.toUpperCase(), c.id]));
   const departments = new Map((await db.department.findMany({ where: { active: true }, select: { id: true, code: true, collegeId: true } })).map((d) => [`${d.collegeId}:${d.code.toUpperCase()}`, d.id]));
   const seenEmployees = new Map<string, number>();
@@ -242,10 +243,10 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
       if (await db.staffProfile.findUnique({ where: { employeeId: sf.employeeId }, select: { id: true } })) { fail("A staff member with this employee ID already exists. Existing records are never overwritten."); continue; }
       if (await db.user.findUnique({ where: { email: sf.email }, select: { id: true } })) { fail("An account with this email already exists. Existing records are never overwritten."); continue; }
       if (dryRun) { created++; continue; }
-      const made = await createStaff(actorId, sf, unusable);
+      const made = await createStaff(actorId, sf, credential);
       if (!made.ok) { fail(Object.values(made.fieldErrors ?? {})[0] ?? made.error ?? "Could not create staff account."); continue; }
       created++;
-      links.push({ studentNumber: sf.employeeId, name: `${sf.firstName} ${sf.lastName}`, email: sf.email, path: made.setupPath });
+      if (made.setupPath) links.push({ studentNumber: sf.employeeId, name: `${sf.firstName} ${sf.lastName}`, email: sf.email, path: made.setupPath });
       continue;
     }
     if (!cell("student_number")) { fail("student_number: Student number is required for students."); continue; }
@@ -299,10 +300,10 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
 
     if (dryRun) { created++; continue; }
 
-    const res = await createStudent(actorId, f, addr.address, unusable);
+    const res = await createStudent(actorId, f, addr.address, credential);
     if (!res.ok) { fail(Object.values(res.fieldErrors ?? {})[0] ?? res.error ?? "Could not create student."); continue; }
     created++;
-    links.push({ studentNumber: f.studentNumber, name: `${f.firstName} ${f.lastName}`, email: f.email, path: res.setupPath });
+    if (res.setupPath) links.push({ studentNumber: f.studentNumber, name: `${f.firstName} ${f.lastName}`, email: f.email, path: res.setupPath });
   }
 
   if (!dryRun) {
@@ -316,5 +317,5 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
     const type = (cell("account_type") || "STUDENT").toUpperCase();
     return { row: i + 2, type, id: cell(type === "STAFF" ? "employee_id" : "student_number"), name: `${cell("first_name")} ${cell("last_name")}`.trim(), email: cell("email"), ok: !failedRows.has(i + 2) };
   });
-  return { ok: true, summary: { dryRun, total: data.length, created, failed: errors.length, errors, ignoredColumns: ignoredCols, links, preview } };
+  return { ok: true, summary: { dryRun, total: data.length, created, failed: errors.length, errors, ignoredColumns: ignoredCols, links, preview, initialPassword: credential?.initialPassword ?? null } };
 }

@@ -20,6 +20,8 @@ export type UserFormState = {
   fieldErrors?: Record<string, string | undefined>;
   /** One-time account setup link, shown to the admin exactly once. */
   setupPath?: string;
+  /** Set when the account was created active with the shared default password (test installations). */
+  initialPassword?: string;
   userId?: string;
 };
 
@@ -59,7 +61,10 @@ export async function createAccountAction(_prev: UserFormState, fd: FormData): P
   const type = z.enum(ACCOUNT_TYPES).safeParse(fd.get("accountType"));
   if (!type.success) return { error: "Choose the account type." };
 
-  const done = (userId: string, setupPath: string, note = ""): UserFormState => ({ success: `Account created. Share the setup link below; it is shown only once.${note}`, setupPath, userId });
+  const done = (userId: string, r: { setupPath: string | null; initialPassword: string | null }, note = ""): UserFormState =>
+    r.initialPassword
+      ? { success: `Account created and active.${note}`, initialPassword: r.initialPassword, userId }
+      : { success: `Account created. Share the setup link below; it is shown only once.${note}`, setupPath: r.setupPath ?? undefined, userId };
 
   if (type.data === "STUDENT") {
     const parsed = studentFieldsSchema.safeParse(readStudent(fd));
@@ -69,20 +74,20 @@ export async function createAccountAction(_prev: UserFormState, fd: FormData): P
     const res = await createStudent(admin.id, parsed.data, addr.address);
     if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
     const photoError = await maybePhoto(res.userId, fd);
-    return done(res.userId, res.setupPath, photoError ? ` The photo was not saved: ${photoError}` : "");
+    return done(res.userId, res, photoError ? ` The photo was not saved: ${photoError}` : "");
   }
   if (type.data === "STAFF") {
     const parsed = staffFieldsSchema.safeParse(readStaff(fd));
     if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
     const res = await createStaff(admin.id, parsed.data);
     if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
-    return done(res.userId, res.setupPath);
+    return done(res.userId, res);
   }
   const parsed = plainSchema.safeParse({ firstName: str(fd, "firstName"), lastName: str(fd, "lastName"), email: str(fd, "email") });
   if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
   const res = await createPlainAccount(admin.id, parsed.data);
   if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
-  return done(res.userId, res.setupPath);
+  return done(res.userId, res);
 }
 
 /**

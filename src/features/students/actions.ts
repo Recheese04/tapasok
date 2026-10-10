@@ -15,6 +15,7 @@ export type StudentFormState = {
   success?: string;
   fieldErrors?: Record<string, string | undefined>;
   setupPath?: string; // shown once to the admin
+  initialPassword?: string; // set when new accounts are active with the shared default password
   summary?: ImportSummary;
 };
 
@@ -55,8 +56,10 @@ export async function createStudentAction(_prev: StudentFormState, fd: FormData)
   const res = await createStudent(admin.id, parsed.data, addr.address);
   if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
   const photoError = await maybePhoto(res.userId, fd);
-  if (photoError) return { error: `Student created, but the photo was not saved: ${photoError}`, setupPath: res.setupPath };
-  return { success: "Student created. Share the setup link below; it is shown only once.", setupPath: res.setupPath };
+  if (photoError) return { error: `Student created, but the photo was not saved: ${photoError}`, setupPath: res.setupPath ?? undefined, initialPassword: res.initialPassword ?? undefined };
+  return res.initialPassword
+    ? { success: "Student created and active.", initialPassword: res.initialPassword }
+    : { success: "Student created. Share the setup link below; it is shown only once.", setupPath: res.setupPath ?? undefined };
 }
 
 export async function updateStudentAction(_prev: StudentFormState, fd: FormData): Promise<StudentFormState> {

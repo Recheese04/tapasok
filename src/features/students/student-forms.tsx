@@ -37,6 +37,7 @@ function Messages({ state }: { state: StudentFormState }) {
       {state.error && <Notice kind="error">{state.error}</Notice>}
       {state.success && <Notice kind="success">{state.success}</Notice>}
       {state.setupPath && <SetupLinkBox path={state.setupPath} />}
+      {state.initialPassword && <Notice kind="info">The account is active. Starting password: {state.initialPassword}</Notice>}
     </>
   );
 }
@@ -271,6 +272,7 @@ export function ImportForm({ reference }: { reference?: ImportReference }) {
           {!s.dryRun && s.failed === 0 && <Notice kind="success">All {s.created} rows were imported.</Notice>}
           {s.dryRun && s.failed > 0 && <Notice kind="info">Rows with problems will be skipped if you import now. Fix the CSV and check again if they should be included.</Notice>}
           {s.ignoredColumns.length > 0 && <Notice kind="info">Ignored columns: {s.ignoredColumns.join(", ")}. Imports never set roles or privileges.</Notice>}
+          {s.initialPassword && <Notice kind="info">The imported accounts are active and their starting password is <strong>{s.initialPassword}</strong>. No setup links were created. Ask everyone to change it in Profile &amp; Settings.</Notice>}
           {s.links.length > 0 && (
             <div className="flex flex-col gap-2">
               <Notice kind="info">Setup links are shown only now. Download them and deliver each one to its owner securely.</Notice>

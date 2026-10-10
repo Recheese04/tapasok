@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/database/client";
-import { makeUnusableHash } from "@/lib/auth/unusable";
+import { newAccountCredential } from "@/lib/auth/unusable";
 import { newActivationToken, setupPath } from "@/features/auth/activation";
 
 // Business rules for account administration. No request/session access here: callers (server actions) authenticate and
@@ -21,20 +21,21 @@ const EMAIL_TAKEN = { email: "An account with this email already exists." };
 export async function createPlainAccount(
   actorId: string,
   input: { firstName: string; lastName: string; email: string },
-): Promise<ServiceResult<{ userId: string; setupPath: string }>> {
+): Promise<ServiceResult<{ userId: string; setupPath: string | null; initialPassword: string | null }>> {
+  const cred = await newAccountCredential();
   const t = newActivationToken();
   try {
     const user = await db.user.create({
       data: {
         ...input,
-        passwordHash: await makeUnusableHash(),
-        status: "INVITED",
+        passwordHash: cred.hash,
+        status: cred.active ? "ACTIVE" : "INVITED",
         // systemRole intentionally not set: new accounts are always regular users.
-        activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } },
+        ...(cred.active ? {} : { activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } } }),
       },
     });
     await db.auditLog.create({ data: { actorUserId: actorId, action: "user.create", targetType: "user", targetId: user.id } });
-    return { ok: true, userId: user.id, setupPath: setupPath(t.token) };
+    return { ok: true, userId: user.id, setupPath: cred.active ? null : setupPath(t.token), initialPassword: cred.initialPassword };
   } catch (e) {
     if (isUniqueViolation(e)) return { ok: false, fieldErrors: EMAIL_TAKEN };
     throw e;

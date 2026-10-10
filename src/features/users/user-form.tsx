@@ -35,6 +35,12 @@ export function UserForm({ tree, values, initialType = "STUDENT" }: { tree: Tree
     <form action={action} className="flex max-w-3xl flex-col gap-5 rounded-2xl border border-border bg-surface p-6 shadow-card">
       {state.error && <Notice kind="error">{state.error}</Notice>}
       {state.success && <Notice kind="success">{state.success}</Notice>}
+      {state.initialPassword && (
+        <div data-keep-open className="flex flex-col gap-2 rounded-xl border border-border bg-sidebar px-4 py-3 text-sm">
+          <p>The account is active. Its starting password is <code className="rounded bg-surface px-1.5 py-0.5 font-mono">{state.initialPassword}</code>. Tell the person to change it in Profile &amp; Settings.</p>
+          {state.userId && <Link href={`/users/${state.userId}`} className="text-primary hover:underline">Open this account to assign organizations and positions</Link>}
+        </div>
+      )}
       {state.setupPath && (
         <div data-keep-open className="flex flex-col gap-3">
           <SetupLinkBox path={state.setupPath} />

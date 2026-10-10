@@ -6,7 +6,7 @@ import { ConfirmButton } from "@/components/shared/confirm-button";
 import { setOrganizationStatusAction } from "@/features/organizations/actions";
 import { listVisibleOrganizations } from "@/features/organizations/queries";
 import { JoinSections } from "@/features/organizations/join-sections";
-import { ModalButton } from "@/components/shared/modal";
+import { ModalFrame } from "@/components/shared/modal";
 import { OrganizationForm } from "@/features/organizations/organization-form";
 import { academicTree } from "@/features/academic/service";
 
@@ -15,9 +15,10 @@ import { academicTree } from "@/features/academic/service";
 // renders; this opts the page out of the "instant navigation" check that would flag the session read.
 export const instant = false;
 
-export default async function OrganizationsPage() {
+export default async function OrganizationsPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   // The list is scoped on the server: admins see all organizations, everyone else only their own.
   const user = await requireUser();
+  const sp = await searchParams;
   const organizations = await listVisibleOrganizations(user);
   const tree = isSystemAdmin(user) ? await academicTree() : [];
 
@@ -29,9 +30,9 @@ export default async function OrganizationsPage() {
           <p className="text-sm text-muted">{isSystemAdmin(user) ? "All organizations." : "Your memberships. Join another organization with a code or by request below."}</p>
         </div>
         {isSystemAdmin(user) && (
-          <ModalButton label="+ New organization" variant="primary" title="New organization" description="Create an organization, then add its adviser and officers from its page." size="lg">
-            <OrganizationForm tree={tree} />
-          </ModalButton>
+<Link href="/organizations?new=1" scroll={false} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover">
+            + New organization
+          </Link>
         )}
       </header>
 
@@ -77,6 +78,12 @@ export default async function OrganizationsPage() {
       )}
 
       {!isSystemAdmin(user) && <JoinSections userId={user.id} />}
+
+      {isSystemAdmin(user) && sp.new === "1" && (
+        <ModalFrame title="New organization" description="Set its scope, link it to the academic structure where it applies, and assign its official adviser." size="lg" closeHref="/organizations">
+          <OrganizationForm tree={tree} />
+        </ModalFrame>
+      )}
     </div>
   );
 }
