@@ -62,6 +62,15 @@ export function SemesterForm({ years }: { years: Opt[] }) {
 }
 
 export function ActiveTermForm({ semesters }: { semesters: Opt[] }) {
+  // The active term is a semester (it carries its school year), so a school year with no semesters cannot be chosen yet.
+  if (semesters.length === 0) {
+    return (
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="font-medium">There are no semesters yet.</p>
+        <p className="text-muted">The active term is a semester of a school year. Add a semester to your school year first (use <strong>+ Semester</strong> on its card), then come back here and set it active.</p>
+      </div>
+    );
+  }
   return (
     <Mini title="Set active term" action={setActiveTermAction} button="Set active">
       {() => <Field id="at-sem" label="Semester">{select("at-sem", "semesterId", semesters, "Choose semester")}</Field>}

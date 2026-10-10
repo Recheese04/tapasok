@@ -128,9 +128,10 @@ export default async function AcademicPage({ searchParams }: { searchParams: Pro
                     <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold">
                       School year {y.label} {y.active && <Badge tone="green">Active</Badge>}
                     </h2>
-                    <p className="text-sm text-muted">{formatDate(y.startsOn)} – {formatDate(y.endsOn)} · {y.semesters.length} semester{y.semesters.length === 1 ? "" : "s"}</p>
+                    <p className="text-sm text-muted">{formatDate(y.startsOn)} – {formatDate(y.endsOn)} · {y.semesters.length} semester{y.semesters.length === 1 ? "" : "s"}{y.semesters.length === 0 ? " · add a semester to be able to set this year active" : ""}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <ModalButton label="+ Semester" variant="action" title="Add semester" description={`School year ${y.label}`} size="sm"><SemesterForm years={[{ id: y.id, label: y.label }]} /></ModalButton>
                     <SchoolYearEdit id={y.id} label={y.label} startsOn={iso(y.startsOn)} endsOn={iso(y.endsOn)} />
                     <DeleteRecord kind="school_year" id={y.id} label={`school year ${y.label}`} blocked={y.active ? "The active school year cannot be deleted." : y.semesters.length ? "Delete or move its semesters first." : undefined} />
                   </div>
