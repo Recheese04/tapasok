@@ -6,6 +6,9 @@ import { ConfirmButton } from "@/components/shared/confirm-button";
 import { setOrganizationStatusAction } from "@/features/organizations/actions";
 import { listVisibleOrganizations } from "@/features/organizations/queries";
 import { JoinSections } from "@/features/organizations/join-sections";
+import { ModalButton } from "@/components/shared/modal";
+import { OrganizationForm } from "@/features/organizations/organization-form";
+import { academicTree } from "@/features/academic/service";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
 // request, so it cannot be prerendered or shared. The layout and loading.tsx stream the frame and a skeleton while it
@@ -16,6 +19,7 @@ export default async function OrganizationsPage() {
   // The list is scoped on the server: admins see all organizations, everyone else only their own.
   const user = await requireUser();
   const organizations = await listVisibleOrganizations(user);
+  const tree = isSystemAdmin(user) ? await academicTree() : [];
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -25,9 +29,9 @@ export default async function OrganizationsPage() {
           <p className="text-sm text-muted">{isSystemAdmin(user) ? "All organizations." : "Your memberships. Join another organization with a code or by request below."}</p>
         </div>
         {isSystemAdmin(user) && (
-          <Link href="/organizations/new" className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary-hover">
-            + New organization
-          </Link>
+          <ModalButton label="+ New organization" variant="primary" title="New organization" description="Create an organization, then add its adviser and officers from its page." size="lg">
+            <OrganizationForm tree={tree} />
+          </ModalButton>
         )}
       </header>
 
