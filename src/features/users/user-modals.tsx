@@ -3,9 +3,11 @@ import Link from "next/link";
 import { ModalFrame } from "@/components/shared/modal";
 import { Badge, primaryButton } from "@/components/shared/ui";
 import { formatDateTime } from "@/lib/format";
+import { db } from "@/lib/database/client";
+import { assertSystemPermission } from "@/lib/permissions";
 import { academicTree } from "@/features/academic/service";
 import { ROLE_LABEL } from "@/features/auth/roles";
-import { ImportForm } from "@/features/students/student-forms";
+import { ImportForm, type ImportReference } from "@/features/students/student-forms";
 import { getUserForAdmin } from "./queries";
 import { ACCOUNT_TYPE_LABEL, ACCOUNT_TYPES, type AccountType } from "./types";
 import { UserForm } from "./user-form";
@@ -45,10 +47,22 @@ export async function NewAccountModal({ type, closeHref }: { type?: string; clos
   );
 }
 
-export function ImportModal({ closeHref }: { closeHref: string }) {
+/** Codes an import file may refer to, so the person can copy valid values instead of guessing. */
+export async function importReference(): Promise<ImportReference> {
+  await assertSystemPermission("students.manage");
+  const [programs, colleges, departments] = await Promise.all([
+    db.program.findMany({ where: { active: true, department: { active: true, college: { active: true } } }, orderBy: { code: "asc" }, select: { code: true, name: true } }),
+    db.college.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, name: true } }),
+    db.department.findMany({ where: { active: true, college: { active: true } }, orderBy: { code: "asc" }, select: { code: true, name: true, college: { select: { code: true } } } }),
+  ]);
+  return { programs, colleges, departments: departments.map((d) => ({ college: d.college.code, code: d.code, name: d.name })) };
+}
+
+export async function ImportModal({ closeHref }: { closeHref: string }) {
+  const reference = await importReference();
   return (
     <ModalFrame title="Import accounts from CSV" description="Required: first_name, last_name, email, plus student_number (students) or employee_id (staff). Imports never create administrators or assign positions." size="lg" closeLabel="Close" closeHref={closeHref}>
-      <ImportForm />
+      <ImportForm reference={reference} />
     </ModalFrame>
   );
 }

@@ -159,6 +159,7 @@ export function Dialog({ open, onClose, title, description, size = "md", closeLa
       // must stay readable, so the dialog then waits for the person to close it.
       const ok = body.querySelector('[data-notice="success"]');
       setSaved(!!ok);
+      if (body.querySelector("[data-keep-open]")) dirty.current = false; // a result is on screen: nothing left to lose
       if (ok) {
         dirty.current = false;
         if (!closing.current && !body.querySelector("[data-keep-open]")) {

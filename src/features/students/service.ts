@@ -10,6 +10,7 @@ import { createStaff } from "@/features/users/staff";
 import { newActivationToken, setupPath } from "@/features/auth/activation";
 import { recordEnrollment, resolveProgram } from "@/features/academic/service";
 import { applyAutoMappingForUser } from "@/features/organizations/mapping";
+import { checkImportHeader, csvMessage, IMPORT_SPEC, ignoredColumns } from "./import-spec";
 
 const isUnique = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 
@@ -167,15 +168,10 @@ export async function updateOwnProfile(
 export const IMPORT_MAX_BYTES = 1_000_000;
 export const IMPORT_MAX_ROWS = 2000;
 
-const REQUIRED = ["first_name", "last_name", "email"] as const;
-const OPTIONAL = [
-  "middle_name", "program_code", "year_level", "rfid_uid", "contact_number", "street_address",
-  "region_code", "province_code", "city_code", "barangay_code",
-  "account_type", "student_number", "employee_id", "college_code", "department_code", "job_title",
-] as const;
-export const IMPORT_COLUMNS = [...REQUIRED, ...OPTIONAL];
+export const IMPORT_COLUMNS = IMPORT_SPEC.map((c) => c.name);
 
 export type ImportRowError = { row: number; studentNumber: string; message: string };
+export type ImportPreviewRow = { row: number; type: string; id: string; name: string; email: string; ok: boolean };
 export type ImportLink = { studentNumber: string; name: string; email: string; path: string };
 export type ImportSummary = {
   dryRun: boolean;
@@ -185,6 +181,7 @@ export type ImportSummary = {
   errors: ImportRowError[];
   ignoredColumns: string[];
   links: ImportLink[]; // one-time setup links; only present for real imports
+  preview: ImportPreviewRow[]; // the first rows with their result, so the file can be reviewed before confirming
 };
 
 export async function importStudents(actorId: string, csvText: string, dryRun: boolean): Promise<{ ok: true; summary: ImportSummary } | { ok: false; error: string }> {
@@ -192,16 +189,12 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
   if (rows.length === 0) return { ok: false, error: "The file is empty." };
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
-  const missing = REQUIRED.filter((c) => !header.includes(c));
-  if (missing.length) return { ok: false, error: `Missing required column(s): ${missing.join(", ")}.` };
-  if (!header.includes("student_number") && !header.includes("employee_id")) return { ok: false, error: "Include a student_number column (students) and/or an employee_id column (faculty/staff)." };
-  const dupCols = header.filter((h, i) => h && header.indexOf(h) !== i);
-  if (dupCols.length) return { ok: false, error: `Duplicate column(s): ${[...new Set(dupCols)].join(", ")}.` };
+  const problems = checkImportHeader(rows[0]);
+  if (problems.length) return { ok: false, error: problems.join(" ") };
 
   // Unknown columns (for example "role", "system_role" or "position") are ignored: an import can never set roles,
   // organization positions or privileges, and it can only create STUDENT or STAFF accounts.
-  const known = new Set<string>(IMPORT_COLUMNS);
-  const ignoredColumns = header.filter((h) => h && !known.has(h));
+  const ignoredCols = ignoredColumns(rows[0]);
 
   const data = rows.slice(1);
   if (data.length === 0) return { ok: false, error: "The file has a header but no student rows." };
@@ -223,7 +216,7 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
     const rowNo = i + 2; // spreadsheet row number (header is row 1)
     const cell = (name: string) => (data[i][header.indexOf(name)] ?? "").trim();
     const type = (cell("account_type") || "STUDENT").toUpperCase();
-    const fail = (message: string) => errors.push({ row: rowNo, studentNumber: cell(type === "STAFF" ? "employee_id" : "student_number"), message });
+    const fail = (message: string) => errors.push({ row: rowNo, studentNumber: cell(type === "STAFF" ? "employee_id" : "student_number"), message: csvMessage(message) });
 
     if (data[i].length > header.length) { fail("Row has more values than the header has columns."); continue; }
     if (type !== "STUDENT" && type !== "STAFF") { fail(`account_type must be STUDENT or STAFF ("${type}" is not allowed). Imports never create administrators or assign positions.`); continue; }
@@ -317,5 +310,11 @@ export async function importStudents(actorId: string, csvText: string, dryRun: b
       data: { actorUserId: actorId, action: "account.import", metadata: { total: data.length, created, failed: errors.length } },
     });
   }
-  return { ok: true, summary: { dryRun, total: data.length, created, failed: errors.length, errors, ignoredColumns, links } };
+  const failedRows = new Set(errors.map((e) => e.row));
+  const preview: ImportPreviewRow[] = data.slice(0, 100).map((r, i) => {
+    const cell = (name: string) => (r[header.indexOf(name)] ?? "").trim();
+    const type = (cell("account_type") || "STUDENT").toUpperCase();
+    return { row: i + 2, type, id: cell(type === "STAFF" ? "employee_id" : "student_number"), name: `${cell("first_name")} ${cell("last_name")}`.trim(), email: cell("email"), ok: !failedRows.has(i + 2) };
+  });
+  return { ok: true, summary: { dryRun, total: data.length, created, failed: errors.length, errors, ignoredColumns: ignoredCols, links, preview } };
 }

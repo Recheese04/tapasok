@@ -96,21 +96,31 @@ export function AddressFields({ defaults = {}, errors = {} }: { defaults?: Defau
   const cities = useList(cityUrl);
   const barangays = useList(city ? `/api/psgc/barangays?city=${city}` : null);
 
+  // The address is optional as a whole (the server stores none, or a complete and verified one). Once any part is chosen the
+  // rest must be completed, so the form never submits a half-filled address that the server would reject.
+  const partial = !!(region || province || city || barangay);
+  const needProvince = partial && !!region && !noProvinces;
+  const clear = () => { setRegion(""); setProvince(""); setCity(""); setBarangay(""); };
+
   return (
     <fieldset className="grid gap-4 sm:grid-cols-2">
-      <legend className="mb-2 text-sm font-medium">Address (Philippine Standard Geographic Code)</legend>
+      <legend className="mb-2 text-sm font-medium">Address (optional) · Philippine Standard Geographic Code</legend>
       <PlaceSelect id="regionCode" name="regionCode" label="Region" placeholder="Select region" value={region}
         onChange={(v) => { setRegion(v); setProvince(""); setCity(""); setBarangay(""); }}
-        list={regions} enabled required error={errors.regionCode} />
+        list={regions} enabled required={partial} error={errors.regionCode} />
       <PlaceSelect id="provinceCode" name="provinceCode" label="Province" placeholder="Select province" value={province}
         onChange={(v) => { setProvince(v); setCity(""); setBarangay(""); }}
-        list={provinces} enabled={!!region && !noProvinces} required error={errors.provinceCode} />
+        list={provinces} enabled={!!region && !noProvinces} required={needProvince} error={errors.provinceCode} />
       <PlaceSelect id="cityCode" name="cityCode" label="City / municipality" placeholder="Select city or municipality" value={city}
         onChange={(v) => { setCity(v); setBarangay(""); }}
-        list={cities} enabled={cityUrl !== null} required error={errors.cityCode} />
+        list={cities} enabled={cityUrl !== null} required={partial} error={errors.cityCode} />
       <PlaceSelect id="barangayCode" name="barangayCode" label="Barangay" placeholder="Select barangay" value={barangay}
-        onChange={setBarangay} list={barangays} enabled={!!city} required error={errors.barangayCode} />
+        onChange={setBarangay} list={barangays} enabled={!!city} required={partial} error={errors.barangayCode} />
       {noProvinces && <p className="text-xs text-muted sm:col-span-2">This region has no provinces; choose a city directly.</p>}
+      <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+        <p className="text-xs text-muted">Leave all four empty to save no address. If you choose one, choose region, {needProvince || !region ? "province, " : ""}city and barangay.</p>
+        {partial && <button type="button" onClick={clear} className="text-sm font-medium text-primary hover:underline">Clear address</button>}
+      </div>
     </fieldset>
   );
 }
