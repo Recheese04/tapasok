@@ -91,5 +91,5 @@ export async function applyAcademicData(db: PrismaClient, data: CollegeSeed[] = 
       }
     }
     return result;
-  });
+  }, { maxWait: 20_000, timeout: 120_000 }); // generous: a hosted database far away makes each query slow
 }
