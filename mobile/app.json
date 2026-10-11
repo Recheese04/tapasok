@@ -11,7 +11,20 @@
       "bundleIdentifier": "ph.edu.bisu.tapasok"
     },
     "android": {
-      "package": "ph.edu.bisu.tapasok"
+      "package": "ph.edu.bisu.tapasok",
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-background.png",
+        "backgroundColor": "#0A1A3F"
+      },
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -24,7 +37,16 @@
         }
       ],
       "expo-font",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#0A1A3F"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -32,6 +54,15 @@
     "web": {
       "bundler": "metro",
       "output": "single"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "788d0d0e-b961-470a-8c0e-3d30027efd93"
+      }
+    },
+    "owner": "recheese",
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#0A1A3F"
   }
 }
