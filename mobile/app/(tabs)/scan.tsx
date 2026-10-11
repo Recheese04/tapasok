@@ -156,7 +156,7 @@ function Placeholder({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; tex
 }
 
 function Corners() {
-  const c = { position: "absolute" as const, width: 34, height: 34, borderColor: colors.accent };
+  const c = { position: "absolute" as const, width: 44, height: 44, borderColor: colors.accent };
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={[c, { top: 18, left: 18, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 }]} />
@@ -170,6 +170,7 @@ function Corners() {
 /** A soft line sweeping the frame while the camera is live, so the member can tell scanning is active. */
 function ScanLine() {
   const y = useRef(new Animated.Value(0)).current;
+  const [h, setH] = useState(0); // travel distance = the frame's inner height, measured so it fits any phone
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
       Animated.timing(y, { toValue: 1, duration: 1800, useNativeDriver: true }),
@@ -179,14 +180,16 @@ function ScanLine() {
     return () => loop.stop();
   }, [y]);
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { padding: 30 }]} onLayout={() => undefined}>
-      <Animated.View style={{ height: 2, borderRadius: 1, backgroundColor: colors.accent, opacity: 0.85, transform: [{ translateY: y.interpolate({ inputRange: [0, 1], outputRange: [0, 240] }) }] }} />
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { padding: 34 }]}>
+      <View style={{ flex: 1 }} onLayout={(e) => setH(e.nativeEvent.layout.height)}>
+        <Animated.View style={{ height: 2, borderRadius: 1, backgroundColor: colors.accent, opacity: 0.85, transform: [{ translateY: y.interpolate({ inputRange: [0, 1], outputRange: [0, Math.max(0, h - 2)] }) }] }} />
+      </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  panel: { backgroundColor: colors.navy900, borderRadius: radius.xl, padding: space.lg, gap: space.lg, overflow: "hidden" },
-  frame: { aspectRatio: 1, width: "100%", maxWidth: 360, alignSelf: "center", backgroundColor: colors.navy800, borderRadius: radius.lg, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  panel: { backgroundColor: colors.navy900, borderRadius: radius.xl, paddingHorizontal: space.md, paddingVertical: space.xl, gap: space.lg, overflow: "hidden" },
+  frame: { aspectRatio: 1, width: "100%", maxWidth: 460, alignSelf: "center", backgroundColor: colors.navy800, borderRadius: radius.lg, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   busy: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(6,18,46,0.6)", alignItems: "center", justifyContent: "center" },
 });

@@ -8,43 +8,63 @@ import { hasTools } from "../../src/roles";
 import { colors, elevation, fonts, radius, space } from "../../src/theme";
 
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>>[0];
+type Icon = keyof typeof Ionicons.glyphMap;
 
-const TABS: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap }> = {
+const TABS: Record<string, { label: string; icon: Icon; active: Icon }> = {
   index: { label: "Home", icon: "home-outline", active: "home" },
   events: { label: "Events", icon: "calendar-clear-outline", active: "calendar-clear" },
-  scan: { label: "Scan", icon: "scan-outline", active: "scan" },
+  scan: { label: "Scan", icon: "scan", active: "scan" },
   manage: { label: "Manage", icon: "briefcase-outline", active: "briefcase" },
   account: { label: "Account", icon: "person-circle-outline", active: "person-circle" },
 };
+const LEFT = ["index", "events"];
+const RIGHT = ["manage", "account"];
 
 /**
- * Floating navy bar (from the reference). The active tab becomes a white pill with its label; the others are icons with a
- * 48pt target. Manage appears only when the person's position in the active organization carries organization tools.
+ * Floating navy bar. Every tab has the same width, an icon and a short label, so nothing shifts when you switch tabs; the
+ * active tab gets a white pill behind its icon. Scan sits exactly in the middle as a raised gold button, with Home and Events
+ * on the left and Manage (officers only) and Account on the right.
  */
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const tools = hasTools(useOrg().overview?.capabilities);
+  const go = (name: string) => {
+    const route = state.routes.find((r) => r.name === name);
+    if (!route) return;
+    const focused = state.routes[state.index]?.name === name;
+    const e = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+    if (!focused && !e.defaultPrevented) navigation.navigate(name);
+  };
+  const current = state.routes[state.index]?.name;
+
+  const tab = (name: string) => {
+    const t = TABS[name];
+    const on = current === name;
+    return (
+      <Pressable key={name} onPress={() => go(name)} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} style={({ pressed }) => [s.tab, pressed && { opacity: 0.7 }]}>
+        <View style={[s.iconPill, on && s.iconPillOn]}>
+          <Ionicons name={on ? t.active : t.icon} size={22} color={on ? colors.navy900 : colors.onDarkMuted} />
+        </View>
+        <Text style={[s.label, on && s.labelOn]} numberOfLines={1}>{t.label}</Text>
+      </Pressable>
+    );
+  };
+
+  const scanOn = current === "scan";
   return (
     <View pointerEvents="box-none" style={[s.wrap, { bottom: Math.max(insets.bottom, space.md) }]}>
+      {/* The navy shape is drawn under the row, so the raised Scan button stays inside the bar's touch area (Android
+          ignores touches outside a view's bounds). */}
       <View style={s.bar} accessibilityRole="tablist">
-        {state.routes.map((route, i) => {
-          const t = TABS[route.name];
-          if (!t || (route.name === "manage" && !tools)) return null;
-          const focused = state.index === i;
-          return (
-            <Pressable
-              key={route.key} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: focused }}
-              onPress={() => {
-                const e = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-                if (!focused && !e.defaultPrevented) navigation.navigate(route.name);
-              }}
-              style={({ pressed }) => [s.tab, focused && s.tabOn, pressed && !focused && { opacity: 0.7 }]}
-            >
-              <Ionicons name={focused ? t.active : t.icon} size={22} color={focused ? colors.navy900 : colors.onDarkMuted} />
-              {focused ? <Text style={s.label} numberOfLines={1}>{t.label}</Text> : null}
-            </Pressable>
-          );
-        })}
+        <View style={s.barBg} />
+        <View style={s.side}>{LEFT.map(tab)}</View>
+        <View style={s.centerSlot}>
+          <Pressable onPress={() => go("scan")} accessibilityRole="tab" accessibilityLabel="Scan" accessibilityState={{ selected: scanOn }} style={({ pressed }) => [s.scan, scanOn && s.scanOn, pressed && { transform: [{ scale: 0.95 }] }]}>
+            <Ionicons name="scan" size={30} color={colors.navy900} />
+          </Pressable>
+          <Text style={[s.label, scanOn && s.labelOn]}>Scan</Text>
+        </View>
+        <View style={s.side}>{RIGHT.filter((n) => n !== "manage" || tools).map(tab)}</View>
       </View>
     </View>
   );
@@ -63,10 +83,18 @@ export default function TabsLayout() {
   );
 }
 
+const SCAN = 64;
 const s = StyleSheet.create({
-  wrap: { position: "absolute", left: space.lg, right: space.lg, alignItems: "center" },
-  bar: { flexDirection: "row", alignItems: "center", width: "100%", maxWidth: 520, backgroundColor: colors.navy900, borderRadius: radius.pill, padding: 6, gap: 2, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", ...elevation.lg },
-  tab: { flex: 1, height: 52, minWidth: 48, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
-  tabOn: { backgroundColor: colors.onDark, flex: 2.3 },
-  label: { fontFamily: fonts.extrabold, fontSize: 13, color: colors.navy900 },
+  wrap: { position: "absolute", left: space.md, right: space.md, alignItems: "center" },
+  bar: { flexDirection: "row", alignItems: "flex-end", width: "100%", maxWidth: 520, height: 96, paddingHorizontal: space.xs, paddingBottom: 8 },
+  barBg: { position: "absolute", left: 0, right: 0, bottom: 0, height: 72, backgroundColor: colors.navy900, borderRadius: radius.xl, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", ...elevation.lg },
+  side: { flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "flex-end" },
+  tab: { flex: 1, maxWidth: 88, minHeight: 56, alignItems: "center", justifyContent: "flex-end", gap: 3 },
+  iconPill: { width: 52, height: 32, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  iconPillOn: { backgroundColor: colors.onDark },
+  label: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14, color: colors.onDarkMuted },
+  labelOn: { fontFamily: fonts.extrabold, color: colors.onDark },
+  centerSlot: { width: SCAN + 20, alignItems: "center", justifyContent: "flex-end", gap: 3 },
+  scan: { width: SCAN, height: SCAN, borderRadius: SCAN / 2, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", borderWidth: 5, borderColor: colors.bg, ...elevation.md },
+  scanOn: { borderColor: colors.onDark },
 });

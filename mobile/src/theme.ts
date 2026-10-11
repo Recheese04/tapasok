@@ -104,4 +104,4 @@ export const tones: Record<Tone, { solid: string; soft: string; ink: string }> =
 };
 
 /** Room the floating tab bar needs at the bottom of scrolling content. */
-export const TAB_BAR_SPACE = 104;
+export const TAB_BAR_SPACE = 124;
