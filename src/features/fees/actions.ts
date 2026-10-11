@@ -89,11 +89,20 @@ export async function recordPaymentAction(_prev: FeeState, fd: FormData): Promis
 /** A student pays digitally and uploads proof. Nothing is marked paid until an officer verifies it. */
 export async function submitDigitalPaymentAction(_prev: FeeState, fd: FormData): Promise<FeeState> {
   const user = await requireUser();
-  const parsed = z.object({ studentFeeId: uuid, method: z.enum(["GCASH", "BANK_TRANSFER", "OTHER"]), reference: z.string().trim().min(3, "Enter the payment reference number.").max(100) })
+  const parsed = z.object({ studentFeeId: uuid, method: z.enum(["CASH", "GCASH", "BANK_TRANSFER", "OTHER"]), reference: z.string().trim().max(100) })
     .safeParse({ studentFeeId: fd.get("studentFeeId"), method: fd.get("method"), reference: (fd.get("reference") ?? "").toString() });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the payment details." };
   const amount = parseAmount((fd.get("amount") ?? "").toString());
   if (!amount) return { error: "Enter an amount like 150 or 150.50." };
+
+  // Cash is handed to the treasurer in person: no reference or proof file is needed, and it still counts only once the treasurer confirms it.
+  if (parsed.data.method === "CASH") {
+    const own = await db.studentFee.findUnique({ where: { id: parsed.data.studentFeeId }, select: { userId: true } });
+    if (!own || own.userId !== user.id) return { error: "Assessment not found." };
+    const res = await submitDigitalPayment(user.id, parsed.data.studentFeeId, { amount, method: "CASH", reference: parsed.data.reference || "Cash payment", proofKey: null, proofMime: null });
+    return res.ok ? { success: `Recorded as pending. Hand the cash to the treasurer; it counts once they confirm it. Reference ${res.receiptCode}` } : { error: res.error };
+  }
+  if (parsed.data.reference.length < 3) return { error: "Enter the payment reference number." };
 
   const proof = fd.get("proof");
   if (!(proof instanceof File) || proof.size === 0) return { error: "Attach a screenshot or receipt as proof of payment." };

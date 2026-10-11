@@ -85,17 +85,25 @@ export function AdjustForm({ studentFeeId }: { studentFeeId: string }) {
 /** Student pays outside the app (for example GCash) and uploads proof; an officer must verify it. */
 export function PayOnlineForm({ studentFeeId, balance }: { studentFeeId: string; balance: string }) {
   const [state, action, pending] = useActionState<FeeState, FormData>(submitDigitalPaymentAction, {});
+  const [method, setMethod] = useState("GCASH");
+  const cash = method === "CASH";
   return (
     <form action={action} className="flex max-w-md flex-col gap-2 rounded-lg border border-border p-3">
       <input type="hidden" name="studentFeeId" value={studentFeeId} />
-      <p className="text-xs text-muted">Paid by GCash or bank transfer? Submit the details and proof. It counts only after the treasurer verifies it.</p>
+      <p className="text-xs text-muted">
+        {cash
+          ? "Paying cash? Hand it to the treasurer. This records it as pending, and it counts once the treasurer confirms they received it."
+          : "Paid by GCash or bank transfer? Submit the details and proof. It counts only after the treasurer verifies it."}
+      </p>
       <div className="flex flex-wrap gap-2">
         <input name="amount" aria-label="Amount paid" required inputMode="decimal" defaultValue={balance} className={`${inputClass} w-28`} />
-        <select name="method" aria-label="Payment method" className={`${inputClass} w-auto`}><option value="GCASH">GCash</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option></select>
-        <input name="reference" aria-label="Payment reference number" required minLength={3} maxLength={100} placeholder="Reference no." className={`${inputClass} w-40`} />
+        <select name="method" aria-label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputClass} w-auto`}>
+          <option value="GCASH">GCash</option><option value="BANK_TRANSFER">Bank transfer</option><option value="CASH">Cash</option><option value="OTHER">Other</option>
+        </select>
+        {!cash && <input name="reference" aria-label="Payment reference number" required minLength={3} maxLength={100} placeholder="Reference no." className={`${inputClass} w-40`} />}
       </div>
-      <input name="proof" type="file" required accept="image/png,image/jpeg,application/pdf" aria-label="Proof of payment" className={inputClass} />
-      <button type="submit" disabled={pending} className={`${secondaryButton} self-start`}>{pending ? "Submitting…" : "Submit for verification"}</button>
+      {!cash && <input name="proof" type="file" required accept="image/png,image/jpeg,application/pdf" aria-label="Proof of payment" className={inputClass} />}
+      <button type="submit" disabled={pending} className={`${secondaryButton} self-start`}>{pending ? "Submitting…" : cash ? "Record cash payment" : "Submit for verification"}</button>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       {state.success && <p role="status" className="text-xs text-success">{state.success}</p>}
     </form>

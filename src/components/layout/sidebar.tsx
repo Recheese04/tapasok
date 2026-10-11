@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SECTION_HEADING, type NavItem } from "@/config/navigation";
 import { logoutAction } from "@/features/auth/actions";
-import { ConfirmProvider } from "@/components/shared/modal";
+import { ConfirmProvider, useConfirm } from "@/components/shared/modal";
 import { Icon, type IconName } from "./icons";
 
 // Decorative icon per destination. Labels always remain visible next to them.
@@ -22,6 +22,7 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
 function ProfileMenu({ displayName, roleLabel }: { displayName: string; roleLabel: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -51,11 +52,19 @@ function ProfileMenu({ displayName, roleLabel }: { displayName: string; roleLabe
           <Link role="menuitem" href="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-sidebar">
             <Icon name="settings" className="h-4 w-4" /> Profile &amp; Settings
           </Link>
-          <form action={logoutAction}>
-            <button type="submit" role="menuitem" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-danger hover:bg-danger/5">
-              <Icon name="logout" className="h-4 w-4" /> Sign out
-            </button>
-          </form>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={async () => {
+              // Asked first, in a dialog, so a stray click never signs anyone out. (The menu closes behind the dialog, so the
+              // sign-out is called directly instead of submitting a form that is no longer on screen.)
+              const ok = await confirm({ title: "Sign out?", message: "You will be signed out of Tapasok on this device.", confirmLabel: "Sign out", cancelLabel: "Stay signed in", danger: true });
+              if (ok) await logoutAction();
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-danger hover:bg-danger/5"
+          >
+            <Icon name="logout" className="h-4 w-4" /> Sign out
+          </button>
         </div>
       )}
     </div>

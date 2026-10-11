@@ -119,7 +119,7 @@ export async function recordPayment(
 /** A student submits a digital payment with proof. It stays PENDING and does NOT reduce the balance until verified. */
 export async function submitDigitalPayment(
   studentId: string, studentFeeId: string,
-  input: { amount: Prisma.Decimal; method: "GCASH" | "BANK_TRANSFER" | "OTHER"; reference: string; proofKey: string; proofMime: string },
+  input: { amount: Prisma.Decimal; method: "CASH" | "GCASH" | "BANK_TRANSFER" | "OTHER"; reference: string; proofKey: string | null; proofMime: string | null },
 ): Promise<Result<{ receiptCode: string }>> {
   if (input.amount.lte(0)) return { ok: false, error: "The amount must be greater than zero." };
   if (!input.reference.trim()) return { ok: false, error: "Enter the payment reference number." };
