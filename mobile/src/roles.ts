@@ -1,4 +1,5 @@
 import type { Caps, OrgOverview } from "./api/types";
+import type { Tone } from "./theme";
 import type { Membership } from "./api/types";
 
 /** Order in which a position decides what leads a person's dashboard when they hold several in one organization. */
@@ -25,17 +26,17 @@ export function organizationsOf(memberships: Membership[]): OrgRef[] {
 /** True when the position gives access to anything beyond the standard member features. Mirrors the server's capability table. */
 export const hasTools = (caps: Caps | undefined) => !!caps && Object.values(caps).some(Boolean);
 
-export type Tool = { key: string; label: string; sub: string; icon: string; tone: "blue" | "success" | "warning" | "violet" | "teal" | "orange"; route: string; badge?: number };
+export type Tool = { key: string; label: string; sub: string; icon: string; tone: Tone; route: string; badge?: number };
 
 /** The organization tools a position can open, in the order that suits it. Each needs a capability the server also enforces. */
 export function toolsFor(o: OrgOverview): Tool[] {
   const c = o.capabilities;
   const role = primaryRole(o.roles);
   const t: Tool[] = [];
-  if (c["fees.view_org"]) t.push({ key: "finance", label: "Finance", sub: c["fees.manage"] ? "Verify payments, record cash, balances" : "Read-only summaries and records", icon: "wallet", tone: "orange", route: "/manage/finance", badge: c["fees.manage"] ? (o.finance?.pendingCount ?? 0) : 0 });
+  if (c["fees.view_org"]) t.push({ key: "finance", label: "Finance", sub: c["fees.manage"] ? "Verify payments, record cash, balances" : "Read-only summaries and records", icon: "wallet", tone: "accent", route: "/manage/finance", badge: c["fees.manage"] ? (o.finance?.pendingCount ?? 0) : 0 });
   if (c["events.manage"]) t.push({ key: "events", label: "Manage events", sub: "Create, publish and open check-in", icon: "calendar", tone: "violet", route: "/manage/events", badge: o.events.drafts ?? 0 });
   if (c["announcements.manage"]) t.push({ key: "announcements", label: "Announcements", sub: "Post updates to members", icon: "megaphone", tone: "teal", route: "/manage/announcements" });
-  if (c["members.basic"]) t.push({ key: "members", label: "Members", sub: `${o.members?.count ?? 0} in this organization`, icon: "people", tone: "blue", route: "/manage/members", badge: o.members?.pendingJoinRequests ?? 0 });
+  if (c["members.basic"]) t.push({ key: "members", label: "Members", sub: `${o.members?.count ?? 0} in this organization`, icon: "people", tone: "info", route: "/manage/members", badge: o.members?.pendingJoinRequests ?? 0 });
   if (c["documents.manage"]) t.push({ key: "documents", label: "Documents", sub: "Organization records", icon: "document-text", tone: "success", route: "/manage/documents" });
   // Leading tool follows the position: finance for the Treasurer/Auditor, records for the Secretary, events for officers.
   const lead: Record<Role, string> = { PRESIDENT: "events", TREASURER: "finance", AUDITOR: "finance", SECRETARY: "announcements", ADVISER: "members", OFFICER: "events", MEMBER: "" };

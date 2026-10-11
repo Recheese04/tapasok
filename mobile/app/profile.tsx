@@ -1,83 +1,90 @@
 import { useState } from "react";
-import { Text, TextInput, View, StyleSheet } from "react-native";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { ApiError, api } from "../src/api/client";
 import { useAuth } from "../src/auth/AuthContext";
-import { Body, Button, Card, ScreenHeader } from "../src/components/ui";
-import { colors, radius, space, type } from "../src/theme";
+import { Field, Notice, useToast } from "../src/components/kit";
+import { Avatar, Body, Button, Card, Divider, ScreenHeader, SectionTitle, Txt } from "../src/components/ui";
+import { colors, space } from "../src/theme";
 
 /** Students may edit only their contact details. Name, student number, program and email are managed by an administrator. */
 export default function Profile() {
   const router = useRouter();
+  const toast = useToast();
   const { me, setMe } = useAuth();
   const sp = me?.student;
   const [middleName, setMiddleName] = useState(sp?.middleName ?? "");
   const [contactNumber, setContactNumber] = useState(sp?.contactNumber ?? "");
   const [streetAddress, setStreetAddress] = useState(sp?.streetAddress ?? "");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   if (!me) return null;
+  const dirty = middleName !== (sp?.middleName ?? "") || contactNumber !== (sp?.contactNumber ?? "") || streetAddress !== (sp?.streetAddress ?? "");
 
   async function save() {
     setBusy(true);
-    setMsg(null);
+    setError(null);
     try {
       setMe(await api.updateProfile({ middleName, contactNumber, streetAddress }));
-      setMsg({ ok: true, text: "Saved." });
+      toast.show("Profile saved");
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof ApiError ? e.message : "Could not save. Please try again." });
+      setError(e instanceof ApiError ? e.message : "Could not save. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScreenHeader title="My profile" back={() => router.back()} />
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScreenHeader eyebrow="Personal" title="Profile" back={() => router.back()} />
       <Body tabs={false}>
-        <Card style={{ gap: 6 }}>
-          <Fixed label="Name" value={`${me.firstName} ${me.lastName}`} />
-          <Fixed label="Email" value={me.email} />
-          {sp ? <Fixed label="Student number" value={sp.studentNumber} /> : null}
-          {sp?.program ? <Fixed label="Program" value={sp.program} /> : null}
-          {sp?.college ? <Fixed label="College" value={sp.college} /> : null}
-          <Text style={[type.small, { marginTop: 6 }]}>These are managed by your administrator.</Text>
+        <Card style={{ gap: space.md }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            <Avatar first={me.firstName} last={me.lastName} size={56} />
+            <View style={{ flex: 1 }}>
+              <Txt variant="h2">{me.firstName} {sp?.middleName ? `${sp.middleName} ` : ""}{me.lastName}</Txt>
+              <Txt variant="small">{me.email}</Txt>
+            </View>
+          </View>
+          <Divider />
+          {sp ? <Fixed icon="id-card-outline" label="Student number" value={sp.studentNumber} /> : null}
+          {sp?.program ? <Fixed icon="school-outline" label="Program" value={sp.program} /> : null}
+          {sp?.college ? <Fixed icon="business-outline" label="College" value={sp.college} /> : null}
+          {sp?.address ? <Fixed icon="location-outline" label="Address" value={sp.address} /> : null}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="lock-closed" size={12} color={colors.textMuted} />
+            <Txt variant="small" color={colors.textMuted}>Managed by your administrator</Txt>
+          </View>
         </Card>
+
         {sp ? (
-          <Card style={{ gap: space.md }}>
-            <Field label="Middle name" value={middleName} onChange={setMiddleName} />
-            <Field label="Contact number" value={contactNumber} onChange={setContactNumber} keyboardType="phone-pad" placeholder="09XXXXXXXXX" />
-            <Field label="Street address" value={streetAddress} onChange={setStreetAddress} />
-            {msg ? <Text accessibilityRole="alert" style={{ color: msg.ok ? colors.success : colors.danger, fontSize: 13 }}>{msg.text}</Text> : null}
-            <Button label="Save changes" onPress={save} loading={busy} />
-          </Card>
+          <>
+            <SectionTitle caption="You can update these yourself">Contact details</SectionTitle>
+            <Card style={{ gap: space.lg }}>
+              <Field label="Middle name" icon="person-outline" value={middleName} onChangeText={setMiddleName} maxLength={60} />
+              <Field label="Contact number" icon="call-outline" value={contactNumber} onChangeText={setContactNumber} keyboardType="phone-pad" placeholder="09XXXXXXXXX" hint="11 digits, starting with 09" maxLength={13} />
+              <Field label="Street address" icon="home-outline" value={streetAddress} onChangeText={setStreetAddress} maxLength={200} placeholder="House no., street, purok" />
+              {error ? <Notice icon="alert-circle" tone="danger" title="Not saved" text={error} /> : null}
+              <Button label="Save changes" icon="checkmark" loading={busy} disabled={!dirty} onPress={() => void save()} />
+            </Card>
+          </>
         ) : (
-          <Card><Text style={type.body}>No student profile is linked to your account.</Text></Card>
+          <Notice icon="information-circle" tone="info" title="No student profile" text="No student profile is linked to your account." />
         )}
       </Body>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
-function Fixed({ label, value }: { label: string; value: string }) {
+function Fixed({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   return (
-    <View>
-      <Text style={type.small}>{label}</Text>
-      <Text style={type.body}>{value}</Text>
+    <View style={{ flexDirection: "row", gap: space.md, alignItems: "center" }}>
+      <Ionicons name={icon} size={18} color={colors.textMuted} />
+      <View style={{ flex: 1 }}>
+        <Txt variant="caption">{label}</Txt>
+        <Txt variant="bodyStrong">{value}</Txt>
+      </View>
     </View>
   );
 }
-
-function Field({ label, value, onChange, ...rest }: { label: string; value: string; onChange: (v: string) => void; keyboardType?: "phone-pad"; placeholder?: string }) {
-  return (
-    <View>
-      <Text style={s.label}>{label}</Text>
-      <TextInput style={s.input} value={value} onChangeText={onChange} placeholderTextColor={colors.muted} {...rest} />
-    </View>
-  );
-}
-
-const s = StyleSheet.create({
-  label: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6 },
-  input: { minHeight: 48, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, paddingHorizontal: space.md, fontSize: 15, color: colors.text },
-});

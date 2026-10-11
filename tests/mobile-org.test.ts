@@ -84,6 +84,10 @@ describe("mobile org dashboards: each position gets its own capabilities, enforc
     const body = await data(await overviewGet(req(await tokenFor(w.a.TREASURER.id)), O(w.orgA.id)));
     expect(body.finance).toMatchObject({ assessed: "90.00", collected: "40.00", pendingVerification: "20.00", outstanding: "50.00", collectionRate: 44, pendingCount: 1, membersWithBalance: 1 });
     expect(body.finance.recent).toHaveLength(2); // confirmed + pending; the voided one is not listed
+    // chart series: six months, this month holds exactly the confirmed, non-voided money
+    expect(body.finance.byMonth).toHaveLength(6);
+    expect(body.finance.byMonth[5].value).toBe("40.00");
+    expect(body.finance.byMonth.slice(0, 5).every((m: { value: string }) => m.value === "0.00")).toBe(true);
     const fin = await data(await financeGet(req(await tokenFor(w.a.TREASURER.id)), O(w.orgA.id)));
     expect(fin.canManage).toBe(true);
     expect(fin.owing).toEqual([expect.objectContaining({ balance: "50.00", due: "90.00", paid: "40.00" })]);
@@ -199,6 +203,22 @@ describe("mobile org dashboards: each position gets its own capabilities, enforc
     expect((await data(await memberNotifications(req(member), ctx({})))).notifications.map((n: { title: string }) => n.title)).toEqual(["New announcement: General assembly"]);
     expect((await data(await annList(req(sec), O(w.orgA.id)))).announcements).toHaveLength(2); // managers see drafts too
     void draft;
+  });
+
+  it("check-in chart counts only this organization's records and only for positions that may see attendance", async () => {
+    const w = await makeWorld();
+    const { makeEvent } = await import("./helpers/world");
+    const ev = await makeEvent(w.orgA.id);
+    const evB = await makeEvent(w.orgB.id);
+    await db.attendanceRecord.create({ data: { eventId: ev.id, sessionId: ev.session.id, userId: w.a.MEMBER.id, status: "PRESENT", source: "QR_SELF" } });
+    await db.attendanceRecord.create({ data: { eventId: ev.id, sessionId: ev.session.id, userId: w.a.TREASURER.id, status: "LATE", source: "QR_SELF" } });
+    await db.attendanceRecord.create({ data: { eventId: evB.id, sessionId: evB.session.id, userId: w.memberB.id, status: "PRESENT", source: "QR_SELF" } });
+    const pres = await data(await overviewGet(req(await tokenFor(w.a.PRESIDENT.id)), O(w.orgA.id)));
+    expect(pres.attendance.byMonth).toHaveLength(6);
+    expect(pres.attendance.byMonth[5].value).toBe(2);
+    expect(pres.attendance.checkins30Days).toBe(2);
+    const treas = await data(await overviewGet(req(await tokenFor(w.a.TREASURER.id)), O(w.orgA.id)));
+    expect(treas.attendance).toBeNull();
   });
 
   it("officers and secretary can create, publish and open events; members and treasurer cannot, and drafts stay hidden from members", async () => {

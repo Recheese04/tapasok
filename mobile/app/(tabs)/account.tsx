@@ -1,59 +1,72 @@
-import { Alert, Text, View } from "react-native";
+import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/auth/AuthContext";
-import { Badge, Body, Card, Row, ScreenHeader, SectionTitle } from "../../src/components/ui";
+import { useConfirm } from "../../src/components/kit";
+import { Avatar, Badge, Body, Card, ListGroup, ListItem, ScreenHeader, SectionTitle, Txt } from "../../src/components/ui";
 import { roleLabel } from "../../src/format";
-import { colors, space, type } from "../../src/theme";
+import { organizationsOf } from "../../src/roles";
+import { colors, space } from "../../src/theme";
 
 export default function Account() {
   const router = useRouter();
+  const confirm = useConfirm();
   const { me, signOut, refreshMe } = useAuth();
   if (!me) return null;
+  const orgs = organizationsOf(me.memberships);
+  const sp = me.student;
 
-  function confirmSignOut() {
+  async function confirmSignOut() {
     // Asked first so a stray tap never signs anyone out.
-    Alert.alert("Sign out?", "You will be signed out of Tapasok on this device.", [
-      { text: "Stay signed in", style: "cancel" },
-      { text: "Sign out", style: "destructive", onPress: () => void signOut() },
-    ]);
+    if (await confirm({ title: "Sign out of Tapasok?", message: "You will need your email and password to sign in again on this device.", confirmLabel: "Sign out", cancelLabel: "Stay signed in", tone: "danger", icon: "log-out-outline" })) await signOut();
   }
 
   return (
     <View style={{ flex: 1 }}>
-      <ScreenHeader title={`${me.firstName} ${me.lastName}`} subtitle={me.student?.studentNumber ?? me.email} avatar={{ first: me.firstName, last: me.lastName }} />
+      <ScreenHeader eyebrow="Your account" title="Account" />
       <Body onRefresh={() => void refreshMe()} refreshing={false}>
-        <Card style={{ gap: space.sm }}>
-          <Text style={type.small}>Email</Text>
-          <Text style={type.body}>{me.email}</Text>
-          {me.student?.program ? (<><Text style={[type.small, { marginTop: 6 }]}>Program</Text><Text style={type.body}>{me.student.program}{me.student.yearLevel ? ` · Year ${me.student.yearLevel}` : ""}</Text></>) : null}
-          {me.memberships.length > 0 && (
-            <View style={{ gap: 6, marginTop: 6 }}>
-              <Text style={type.small}>Positions</Text>
-              {me.memberships.map((m) => (
-                <View key={m.organizationId + m.role} style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <Badge label={roleLabel(m.role, m.title)} tone={m.role === "MEMBER" ? "muted" : "violet"} />
-                  <Text style={type.body}>{m.acronym ?? m.organization}</Text>
-                </View>
-              ))}
+        <Card style={{ gap: space.lg }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            <Avatar first={me.firstName} last={me.lastName} size={60} />
+            <View style={{ flex: 1 }}>
+              <Txt variant="h2" numberOfLines={1}>{me.firstName} {me.lastName}</Txt>
+              <Txt variant="small" numberOfLines={1}>{me.email}</Txt>
+              {sp ? <Txt variant="small" color={colors.textMuted} numberOfLines={1}>{sp.studentNumber}{sp.yearLevel ? ` · Year ${sp.yearLevel}` : ""}</Txt> : null}
             </View>
-          )}
+          </View>
+          {sp?.program ? (
+            <View style={{ padding: space.md, borderRadius: 14, backgroundColor: colors.surfaceAlt, gap: 2 }}>
+              <Txt variant="caption">Program</Txt>
+              <Txt variant="bodyStrong">{sp.program}</Txt>
+              {sp.college ? <Txt variant="small">{sp.college}</Txt> : null}
+            </View>
+          ) : null}
+          {orgs.length ? (
+            <View style={{ gap: space.sm }}>
+              <Txt variant="caption">Positions</Txt>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {orgs.flatMap((o) => o.roles.map((r, i) => <Badge key={o.id + i} label={`${roleLabel(r.role, r.title)} · ${o.acronym ?? o.name}`} tone={r.role === "MEMBER" ? "neutral" : "violet"} />))}
+              </View>
+            </View>
+          ) : null}
         </Card>
 
-        <SectionTitle>My Tapasok</SectionTitle>
-        <Row icon="person-outline" tone="blue" title="My profile" sub="View and update your contact details" onPress={() => router.push("/profile")} />
-        <Row icon="people-outline" tone="violet" title="My organizations" sub="Organizations and your positions" onPress={() => router.push("/organizations")} />
-        <Row icon="wallet-outline" tone="orange" title="Fees and payments" sub="What you owe and what you paid" onPress={() => router.push("/fees")} />
-        <Row icon="megaphone-outline" tone="teal" title="Announcements" onPress={() => router.push("/announcements")} />
-        <Row
-          icon="notifications-outline" tone="warning" title="Notifications"
-          right={me.unread > 0 ? <Badge label={`${me.unread} new`} tone="danger" /> : undefined}
-          onPress={() => router.push("/notifications")}
-        />
+        <SectionTitle>Personal</SectionTitle>
+        <ListGroup>
+          <ListItem icon="person" tone="primary" title="Profile" subtitle="Contact details" onPress={() => router.push("/profile")} />
+          <ListItem icon="wallet" tone="accent" title="My fees and payments" subtitle="What you owe and what you paid" onPress={() => router.push("/fees")} />
+          <ListItem icon="people" tone="violet" title="My organizations" subtitle={`${orgs.length} organization${orgs.length === 1 ? "" : "s"}`} onPress={() => router.push("/organizations")} />
+        </ListGroup>
 
-        <View style={{ marginTop: space.md }}>
-          <Row icon="log-out-outline" tone="danger" title="Sign out" onPress={confirmSignOut} right={<Text style={{ color: colors.danger, fontWeight: "700" }}> </Text>} />
-        </View>
-        <Text style={[type.small, { textAlign: "center", marginTop: space.md }]}>Tapasok mobile 1.0 · Passwords and account setup are managed on the website.</Text>
+        <SectionTitle>Updates</SectionTitle>
+        <ListGroup>
+          <ListItem icon="notifications" tone="warning" title="Notifications" right={me.unread > 0 ? <Badge label={`${me.unread} new`} tone="danger" dot /> : undefined} onPress={() => router.push("/notifications")} />
+          <ListItem icon="megaphone" tone="teal" title="Announcements" onPress={() => router.push("/announcements")} />
+        </ListGroup>
+
+        <ListGroup>
+          <ListItem icon="log-out-outline" tone="danger" title="Sign out" chevron={false} onPress={() => void confirmSignOut()} />
+        </ListGroup>
+        <Txt variant="small" color={colors.textMuted} align="center" style={{ marginTop: space.sm }}>Tapasok mobile 1.0 · Passwords and account setup are managed on the website.</Txt>
       </Body>
     </View>
   );

@@ -1,178 +1,225 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { OrgOverview } from "../api/types";
-import { fmtDate, peso } from "../format";
+import type { OrgOverview, OrgPayment } from "../api/types";
+import { ago, peso, pesoShort } from "../format";
 import { primaryRole, type Role } from "../roles";
-import { colors, MIN_TOUCH, radius, space, type } from "../theme";
-import { ProgressBar, StatTile, TileGrid } from "./kit";
-import { Badge, Card, IconChip, SectionTitle, type Tone } from "./ui";
+import { colors, elevation, MIN_TOUCH, radius, space, tones } from "../theme";
+import { Notice } from "./kit";
+import { Badge, BarChart, Card, IconChip, ListGroup, ListItem, ProgressBar, SectionTitle, SegmentBar, Txt, type IconName, type Tone } from "./ui";
 
-type IconName = keyof typeof Ionicons.glyphMap;
 type Action = { key: string; label: string; icon: IconName; tone: Tone; href: Href };
+type Metric = { label: string; value: string };
 
-const PAY_TONE: Record<string, [string, Tone]> = { CONFIRMED: ["Confirmed", "success"], PENDING: ["Pending", "warning"], REJECTED: ["Rejected", "danger"] };
+export const PAY_STATUS: Record<string, [string, Tone]> = { CONFIRMED: ["Confirmed", "success"], PENDING: ["Awaiting", "warning"], REJECTED: ["Rejected", "danger"] };
+export const METHOD: Record<string, string> = { CASH: "Cash", GCASH: "GCash", BANK_TRANSFER: "Bank transfer", OTHER: "Other" };
 
 /**
  * The organization-specific part of Home. What appears is decided by the capabilities the server returned for THIS
- * organization (never by a role name alone), and its order and emphasis follow the person's position: money first for the
- * Treasurer and Auditor, events and members for the President, records for the Secretary, events for other officers.
+ * organization (never by a role name alone); order and emphasis follow the position: money first for the Treasurer and
+ * Auditor, organization performance for the President, records for the Secretary, events for other officers.
  */
 export function OfficerSection({ overview }: { overview: OrgOverview }) {
   const router = useRouter();
   const c = overview.capabilities;
   const role = primaryRole(overview.roles);
   const f = overview.finance;
-  const financeFirst = role === "TREASURER" || role === "AUDITOR";
-  const go = (href: Href) => () => router.push(href);
+  const orgName = overview.organization.acronym ?? overview.organization.name;
+  const financeFirst = (role === "TREASURER" || role === "AUDITOR") && !!f;
 
   return (
     <View style={{ gap: space.md }}>
-      <SectionTitle>{`Organization tools · ${overview.organization.acronym ?? overview.organization.name}`}</SectionTitle>
+      <SectionTitle caption={roleCaption(role)}>{`${orgName} · Organization tools`}</SectionTitle>
 
-      {f && financeFirst ? <FinanceHero overview={overview} /> : null}
+      {financeFirst ? <FinanceHero overview={overview} /> : <OrgHero overview={overview} role={role} />}
 
       {c["fees.manage"] && (f?.pendingCount ?? 0) > 0 ? (
-        <Card onPress={go({ pathname: "/manage/finance", params: { tab: "pending" } })} style={{ flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: colors.warningSoft, borderColor: "#F2D79B" }}>
-          <IconChip name="time" tone="warning" />
-          <View style={{ flex: 1 }}>
-            <Text style={[type.h2, { color: colors.warning }]}>{f!.pendingCount} payment{f!.pendingCount === 1 ? "" : "s"} to verify</Text>
-            <Text style={type.small}>{peso(f!.pendingVerification)} waiting for your confirmation</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.warning} />
-        </Card>
+        <Notice icon="time" tone="warning" title={`${f!.pendingCount} payment${f!.pendingCount === 1 ? "" : "s"} to verify`} text={`${peso(f!.pendingVerification)} waiting for your confirmation`} onPress={() => router.push({ pathname: "/manage/finance", params: { tab: "pending" } })} />
       ) : null}
-
-      <TileGrid>{tilesFor(role, overview, router.push)}</TileGrid>
-
-      {f && !financeFirst ? <FinanceStrip overview={overview} /> : null}
+      {(overview.members?.pendingJoinRequests ?? 0) > 0 ? (
+        <Notice icon="person-add" tone="info" title={`${overview.members!.pendingJoinRequests} join request${overview.members!.pendingJoinRequests === 1 ? "" : "s"}`} text="Review them on the Tapasok website" />
+      ) : null}
 
       <ActionGrid actions={actionsFor(role, overview)} />
 
-      {f && financeFirst && (f.recent?.length ?? 0) > 0 ? (
+      {financeFirst && f?.byMonth ? (
+        <Card style={{ gap: space.md }}>
+          <ChartHeader title="Collections" caption="Confirmed payments · last 6 months" />
+          <BarChart data={f.byMonth.map((m) => ({ label: m.label, value: Number(m.value) }))} format={pesoShort} accessibilityLabel="Collections by month" />
+        </Card>
+      ) : overview.attendance?.byMonth ? (
+        <Card style={{ gap: space.md }}>
+          <ChartHeader title="Check-ins" caption={`${overview.attendance.checkins30Days} in the last 30 days · ${overview.attendance.checkinsToday} today`} />
+          <BarChart data={overview.attendance.byMonth} accessibilityLabel="Check-ins by month" />
+        </Card>
+      ) : null}
+
+      {f && !financeFirst ? <FinanceStrip overview={overview} /> : null}
+
+      {financeFirst && (f?.recent?.length ?? 0) > 0 ? (
         <>
-          <SectionTitle action="See all" onAction={go("/manage/finance")}>Recent payments</SectionTitle>
-          <Card style={{ paddingVertical: space.sm }}>
-            {f.recent!.slice(0, 3).map((p, i) => {
-              const st = PAY_TONE[p.status] ?? [p.status, "muted" as Tone];
-              return (
-                <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.md, borderTopWidth: i ? 1 : 0, borderTopColor: colors.border }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={type.body} numberOfLines={1}>{p.member}</Text>
-                    <Text style={type.small} numberOfLines={1}>{p.fee} · {fmtDate(p.at)}</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end", gap: 4 }}>
-                    <Text style={[type.h2, { fontVariant: ["tabular-nums"] }]}>{peso(p.amount)}</Text>
-                    <Badge label={st[0]} tone={st[1]} />
-                  </View>
-                </View>
-              );
-            })}
-          </Card>
+          <SectionTitle action="See all" onAction={() => router.push({ pathname: "/manage/finance", params: { tab: "recent" } })}>Recent transactions</SectionTitle>
+          <ListGroup>{f!.recent!.slice(0, 4).map((p) => <PaymentItem key={p.id} p={p} />)}</ListGroup>
         </>
       ) : null}
     </View>
   );
 }
 
-/** Large collected-money summary: the Treasurer's and Auditor's first screen. All figures come from the server's ledger. */
-function FinanceHero({ overview }: { overview: OrgOverview }) {
-  const router = useRouter();
-  const f = overview.finance!;
-  return (
-    <Card onPress={() => router.push("/manage/finance")} accessibilityLabel="Open finance" style={{ gap: space.md }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Text style={type.caption}>COLLECTED</Text>
-        {!overview.capabilities["fees.manage"] ? <Badge label="Read-only" tone="muted" /> : null}
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>
-        <Text style={[type.display, { fontVariant: ["tabular-nums"] }]} adjustsFontSizeToFit numberOfLines={1}>{peso(f.collected)}</Text>
-        {f.collectionRate !== null ? <Text style={[type.small, { color: colors.success, fontWeight: "700" }]}>{f.collectionRate}% of assessed</Text> : null}
-      </View>
-      {f.collectionRate !== null ? <ProgressBar value={f.collectionRate} /> : null}
-      <View style={{ flexDirection: "row", gap: space.md }}>
-        <Mini label="Assessed" value={peso(f.assessed)} />
-        <Mini label="Outstanding" value={peso(f.outstanding)} color={Number(f.outstanding) > 0 ? colors.orange : colors.success} />
-        <Mini label="Awaiting" value={peso(f.pendingVerification)} />
-      </View>
-    </Card>
-  );
+function roleCaption(role: Role) {
+  return {
+    PRESIDENT: "Organization performance and management",
+    TREASURER: "Collections, balances and payment verification",
+    AUDITOR: "Read-only financial oversight",
+    SECRETARY: "Records, announcements and membership",
+    ADVISER: "Oversight of members, attendance and finance",
+    OFFICER: "Events and attendance",
+    MEMBER: "",
+  }[role];
 }
 
-function Mini({ label, value, color }: { label: string; value: string; color?: string }) {
+function ChartHeader({ title, caption }: { title: string; caption: string }) {
   return (
-    <View style={{ flex: 1 }}>
-      <Text style={type.caption}>{label}</Text>
-      <Text style={[type.h2, { color: color ?? colors.text, fontVariant: ["tabular-nums"] }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+      <View style={{ flex: 1 }}>
+        <Txt variant="h3">{title}</Txt>
+        <Txt variant="small" color={colors.textMuted}>{caption}</Txt>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent }} />
+        <Txt variant="small" color={colors.textMuted}>This month</Txt>
+      </View>
     </View>
   );
 }
 
-/** Compact collected / outstanding strip for positions where finance is secondary (President, Adviser). */
-function FinanceStrip({ overview }: { overview: OrgOverview }) {
+export function PaymentItem({ p }: { p: OrgPayment }) {
+  const st = PAY_STATUS[p.status] ?? [p.status, "neutral" as Tone];
+  return (
+    <ListItem
+      icon={p.method === "CASH" ? "cash-outline" : "phone-portrait-outline"} tone={st[1]} title={p.member} subtitle={`${p.fee} · ${METHOD[p.method] ?? p.method} · ${ago(p.at)}`}
+      right={<View style={{ alignItems: "flex-end", gap: 4 }}><Txt variant="bodyStrong" style={{ fontVariant: ["tabular-nums"] }}>{peso(p.amount)}</Txt><Badge label={st[0]} tone={st[1]} dot /></View>}
+      accessibilityLabel={`${p.member}, ${peso(p.amount)}, ${st[0]}`}
+    />
+  );
+}
+
+/** Treasurer / Auditor hero: verified totals on navy, with the collection split. All figures come from the server's ledger. */
+function FinanceHero({ overview }: { overview: OrgOverview }) {
   const router = useRouter();
   const f = overview.finance!;
   return (
-    <Card onPress={() => router.push("/manage/finance")} accessibilityLabel="Open finance" style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-      <IconChip name="wallet" tone="orange" />
-      <View style={{ flex: 1, flexDirection: "row", gap: space.md }}>
-        <Mini label="Collected" value={peso(f.collected)} />
-        <Mini label="Outstanding" value={peso(f.outstanding)} color={Number(f.outstanding) > 0 ? colors.orange : colors.success} />
+    <Card variant="dark" onPress={() => router.push("/manage/finance")} accessibilityLabel={`Collected ${peso(f.collected)}. Open finance`} style={{ gap: space.lg, padding: space.xl }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Txt variant="caption" color={colors.onDarkMuted}>Total collected</Txt>
+        {overview.capabilities["fees.manage"] ? <Badge label="Verified ledger" tone="success" icon="shield-checkmark" /> : <Badge label="Read-only" tone="neutral" icon="eye" />}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      <View>
+        <Txt variant="numberLg" color={colors.onDark} numberOfLines={1} adjustsFontSizeToFit>{peso(f.collected)}</Txt>
+        <Txt variant="small" color={colors.onDarkMuted}>{f.collectionRate !== null ? `${f.collectionRate}% of ${peso(f.assessed)} assessed` : "Nothing assessed yet"}</Txt>
+      </View>
+      <SegmentBar onDark segments={[
+        { label: "Collected", value: Number(f.collected), display: peso(f.collected), tone: "success" },
+        { label: "Awaiting", value: Number(f.pendingVerification), display: peso(f.pendingVerification), tone: "accent" },
+        { label: "Outstanding", value: Number(f.outstanding), display: peso(f.outstanding), tone: "danger" },
+      ]} />
+      <View style={s.heroFoot}>
+        <HeroMetric label="Members with balance" value={String(f.membersWithBalance)} />
+        <HeroMetric label="Members assessed" value={String(f.membersAssessed)} />
+      </View>
     </Card>
   );
 }
 
-function tilesFor(role: Role, o: OrgOverview, push: (h: Href) => void) {
-  const T = (key: string, icon: IconName, tone: Tone, label: string, value: number | string, href?: Href, sub?: string) => (
-    <StatTile key={key} icon={icon} tone={tone} label={label} value={String(value)} sub={sub} onPress={href ? () => push(href) : undefined} />
+/** Organization overview hero for the President, Secretary, Adviser and officers: the 3 numbers that matter to that position. */
+function OrgHero({ overview, role }: { overview: OrgOverview; role: Role }) {
+  const o = overview;
+  const m: Metric[] = [];
+  const members = o.members ? { label: "Members", value: String(o.members.count) } : null;
+  const events = { label: "Upcoming events", value: String(o.events.upcoming) };
+  const checkins = o.attendance ? { label: "Check-ins · 30d", value: String(o.attendance.checkins30Days) } : null;
+  if (role === "SECRETARY") m.push(...[members, o.documents && { label: "Documents", value: String(o.documents.count) }, o.announcements && { label: "Posts published", value: String(o.announcements.published) }].filter(Boolean) as Metric[]);
+  else if (role === "OFFICER") m.push(...[events, o.attendance && { label: "Check-ins today", value: String(o.attendance.checkinsToday) }, o.obligations && { label: "Open obligations", value: String(o.obligations.open) }].filter(Boolean) as Metric[]);
+  else if (role === "ADVISER") m.push(...[members, checkins, o.evaluations && { label: "Open evaluations", value: String(o.evaluations.open) }].filter(Boolean) as Metric[]);
+  else m.push(...[members, events, checkins].filter(Boolean) as Metric[]);
+  const lead = m[0];
+  const rest = m.slice(1);
+  return (
+    <Card variant="dark" style={{ gap: space.lg, padding: space.xl }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Txt variant="caption" color={colors.onDarkMuted}>{overview.organization.name}</Txt>
+        <Badge label={roleTitle(overview)} tone="accent" icon="ribbon" />
+      </View>
+      {lead ? (
+        <View>
+          <Txt variant="numberLg" color={colors.onDark}>{lead.value}</Txt>
+          <Txt variant="small" color={colors.onDarkMuted}>{lead.label}</Txt>
+        </View>
+      ) : null}
+      {rest.length ? <View style={s.heroFoot}>{rest.map((x) => <HeroMetric key={x.label} {...x} />)}</View> : null}
+    </Card>
   );
-  const members = o.members, att = o.attendance, f = o.finance;
-  const out = [];
-  const events = T("events", "calendar", "violet", "Upcoming events", o.events.upcoming, o.capabilities["events.manage"] ? "/manage/events" : "/events");
-  const memberTile = members ? T("members", "people", "blue", "Members", members.count, "/manage/members") : null;
-  const requests = members && members.pendingJoinRequests !== null ? T("requests", "person-add", "teal", "Join requests", members.pendingJoinRequests, undefined, "Review on the web") : null;
-  switch (role) {
-    case "PRESIDENT":
-      out.push(memberTile, events, att && T("checkins", "checkmark-done", "success", "Check-ins · 30 days", att.checkins30Days), requests ?? (o.obligations && T("obligations", "list", "orange", "Open obligations", o.obligations.open)));
-      break;
-    case "SECRETARY":
-      out.push(memberTile, requests, o.documents && T("docs", "document-text", "success", "Documents", o.documents.count, "/manage/documents"), events);
-      break;
-    case "TREASURER":
-    case "AUDITOR":
-      if (f) out.push(T("owing", "alert-circle", "orange", "Members with balance", f.membersWithBalance, "/manage/finance"), T("assessed", "people", "blue", "Members assessed", f.membersAssessed));
-      break;
-    case "ADVISER":
-      out.push(memberTile, att && T("checkins", "checkmark-done", "success", "Check-ins · 30 days", att.checkins30Days), o.evaluations && T("evals", "clipboard", "violet", "Open evaluations", o.evaluations.open), o.obligations && T("obligations", "list", "orange", "Open obligations", o.obligations.open));
-      break;
-    default: // OFFICER
-      out.push(events, att && T("today", "checkmark-done", "success", "Check-ins today", att.checkinsToday), o.obligations && T("obligations", "list", "orange", "Open obligations", o.obligations.open), o.events.drafts !== null && T("drafts", "create", "blue", "Draft events", o.events.drafts, "/manage/events"));
-  }
-  return out.filter(Boolean);
+}
+
+const roleTitle = (o: OrgOverview) => {
+  const r = primaryRole(o.roles);
+  return o.roles.find((x) => x.role === r)?.title ?? r.charAt(0) + r.slice(1).toLowerCase();
+};
+
+function HeroMetric({ label, value }: Metric) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Txt variant="number" color={colors.onDark}>{value}</Txt>
+      <Txt variant="small" color={colors.onDarkMuted} numberOfLines={2}>{label}</Txt>
+    </View>
+  );
+}
+
+/** Compact collected / outstanding for positions where finance is secondary (President, Adviser). */
+function FinanceStrip({ overview }: { overview: OrgOverview }) {
+  const router = useRouter();
+  const f = overview.finance!;
+  return (
+    <Card onPress={() => router.push("/manage/finance")} accessibilityLabel={`Finance: collected ${peso(f.collected)}, outstanding ${peso(f.outstanding)}`} style={{ gap: space.md }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+        <IconChip name="wallet" tone="accent" size={40} />
+        <View style={{ flex: 1 }}>
+          <Txt variant="h3">Finance</Txt>
+          <Txt variant="small" color={colors.textMuted}>{f.collectionRate !== null ? `${f.collectionRate}% collected` : "Nothing assessed yet"}{overview.capabilities["fees.manage"] ? "" : " · read-only"}</Txt>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </View>
+      {f.collectionRate !== null ? <ProgressBar value={f.collectionRate} tone="success" /> : null}
+      <View style={{ flexDirection: "row", gap: space.lg }}>
+        <View style={{ flex: 1 }}><Txt variant="caption">Collected</Txt><Txt variant="h3" style={{ fontVariant: ["tabular-nums"] }}>{peso(f.collected)}</Txt></View>
+        <View style={{ flex: 1 }}><Txt variant="caption">Outstanding</Txt><Txt variant="h3" color={Number(f.outstanding) > 0 ? colors.dangerInk : colors.successInk} style={{ fontVariant: ["tabular-nums"] }}>{peso(f.outstanding)}</Txt></View>
+      </View>
+    </Card>
+  );
 }
 
 function actionsFor(role: Role, o: OrgOverview): Action[] {
   const c = o.capabilities;
   const all: Action[] = [];
   if (c["fees.manage"]) {
-    all.push({ key: "verify", label: "Verify payments", icon: "shield-checkmark", tone: "orange", href: { pathname: "/manage/finance", params: { tab: "pending" } } });
+    all.push({ key: "verify", label: "Verify payments", icon: "shield-checkmark", tone: "warning", href: { pathname: "/manage/finance", params: { tab: "pending" } } });
     all.push({ key: "cash", label: "Record payment", icon: "cash", tone: "success", href: { pathname: "/manage/finance", params: { tab: "owing" } } });
   } else if (c["fees.view_org"]) {
-    all.push({ key: "reports", label: "Financial records", icon: "document-text", tone: "orange", href: "/manage/finance" });
+    all.push({ key: "reports", label: "Financial records", icon: "bar-chart", tone: "accent", href: "/manage/finance" });
+    all.push({ key: "balances", label: "Balances", icon: "list", tone: "danger", href: { pathname: "/manage/finance", params: { tab: "owing" } } });
   }
   if (c["announcements.manage"]) all.push({ key: "ann", label: "New announcement", icon: "megaphone", tone: "teal", href: { pathname: "/manage/announcements", params: { new: "1" } } });
   if (c["events.manage"]) all.push({ key: "event", label: "New event", icon: "add-circle", tone: "violet", href: { pathname: "/manage/events", params: { new: "1" } } });
+  if (c["events.manage"]) all.push({ key: "events", label: "Manage events", icon: "calendar", tone: "primary", href: "/manage/events" });
   if (c["documents.manage"]) all.push({ key: "docs", label: "Documents", icon: "folder-open", tone: "success", href: "/manage/documents" });
-  if (c["members.basic"]) all.push({ key: "members", label: "Members", icon: "people", tone: "blue", href: "/manage/members" });
+  if (c["members.basic"]) all.push({ key: "members", label: "Members", icon: "people", tone: "info", href: "/manage/members" });
   const order: Record<Role, string[]> = {
-    PRESIDENT: ["event", "ann", "verify", "members", "cash", "docs", "reports"],
-    TREASURER: ["verify", "cash", "reports", "members"],
-    AUDITOR: ["reports", "members"],
+    PRESIDENT: ["event", "ann", "verify", "members"],
+    TREASURER: ["verify", "cash", "members", "reports"],
+    AUDITOR: ["reports", "balances", "members"],
     SECRETARY: ["ann", "docs", "event", "members"],
-    ADVISER: ["reports", "members"],
-    OFFICER: ["event", "members"],
+    ADVISER: ["reports", "members", "balances"],
+    OFFICER: ["event", "events", "members"],
     MEMBER: [],
   };
   const rank = (k: string) => { const i = order[role].indexOf(k); return i === -1 ? 99 : i; };
@@ -185,14 +232,17 @@ function ActionGrid({ actions }: { actions: Action[] }) {
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
       {actions.map((a) => (
-        <Pressable
-          key={a.key} onPress={() => router.push(a.href)} accessibilityRole="button" accessibilityLabel={a.label}
-          style={({ pressed }) => ({ flexBasis: "47%", flexGrow: 1, minHeight: MIN_TOUCH + 8, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: space.md, paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.blueSoft, opacity: pressed ? 0.8 : 1 })}
-        >
-          <Ionicons name={a.icon} size={20} color={colors.blue} />
-          <Text style={{ flex: 1, color: colors.blue, fontWeight: "700", fontSize: 13 }} numberOfLines={2}>{a.label}</Text>
+        <Pressable key={a.key} onPress={() => router.push(a.href)} accessibilityRole="button" accessibilityLabel={a.label} style={({ pressed }) => [s.action, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}>
+          <View style={[s.actionIcon, { backgroundColor: tones[a.tone].soft }]}><Ionicons name={a.icon} size={20} color={tones[a.tone].solid} /></View>
+          <Txt variant="smallStrong" style={{ flex: 1 }} numberOfLines={2}>{a.label}</Txt>
         </Pressable>
       ))}
     </View>
   );
 }
+
+const s = StyleSheet.create({
+  heroFoot: { flexDirection: "row", gap: space.lg, paddingTop: space.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.22)" },
+  action: { flexBasis: "47%", flexGrow: 1, maxWidth: "49%", minHeight: MIN_TOUCH + 12, flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...elevation.sm },
+  actionIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+});

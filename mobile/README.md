@@ -73,12 +73,20 @@ npx expo-doctor
 `node_modules/react` is one level up). Metro resolves from `mobile/node_modules`, so the app is unaffected. `.npmrc`
 sets `legacy-peer-deps` because some Expo packages declare loose peer ranges that npm otherwise refuses to resolve.
 
-## Design
+## Design system
 
-Follows the EduPulse-style reference: navy-blue gradient header with avatar top-right, white rounded cards on a light
-gray background, pill filter chips, colored icon chips, a QR panel on blue, and a floating dark-navy tab bar whose
-active tab is a white pill. Tokens live in `src/theme.ts`; reusable pieces are in `src/components/ui.tsx`.
-(The planning document says purple; the supplied reference is navy, so the reference was followed.)
+All screens are built from one set of tokens and components:
+
+- `src/theme.ts`: palette (university navy foundation, royal-blue actions, one warm gold accent, semantic success /
+  warning / danger / info each with solid, soft and ink shades), Plus Jakarta Sans type scale, spacing, radii, elevation.
+- `src/components/ui.tsx`: primitives (`Txt`, `Button`, `IconButton`, `Card` incl. the navy `dark` hero, `ListGroup` /
+  `ListItem`, `Badge`, `Chips`, `ScreenHeader`, `Body`, `StatTile`, `ProgressBar`, `SegmentBar`, `BarChart`, `DateBlock`,
+  skeletons, `Empty` / `ErrorState` with spot illustrations).
+- `src/components/kit.tsx`: `Sheet`, `Field`, `DateTimeField`, `useToast`, `useConfirm` (one confirmation dialog on every
+  platform), `Notice`, `OrgChip`.
+
+The one decorative motif is a set of faint concentric rings on navy surfaces, echoing the reference's layered header.
+Charts use real six-month series from the overview endpoint (`attendance.byMonth`, `finance.byMonth`).
 
 ## Structure
 

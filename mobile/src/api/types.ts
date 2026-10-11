@@ -35,12 +35,12 @@ export type OrgOverview = {
   capabilities: Caps;
   events: { upcoming: number; drafts: number | null };
   members: { count: number; pendingJoinRequests: number | null } | null;
-  attendance: { checkins30Days: number; checkinsToday: number } | null;
+  attendance: { checkins30Days: number; checkinsToday: number; byMonth: { label: string; value: number }[] | null } | null;
   announcements: { published: number; drafts: number | null } | null;
   documents: { count: number } | null;
   evaluations: { open: number } | null;
   obligations: { open: number } | null;
-  finance: (FinanceTotals & { pendingCount: number | null; recent: OrgPayment[] | null }) | null;
+  finance: (FinanceTotals & { pendingCount: number | null; recent: OrgPayment[] | null; byMonth: { label: string; value: string }[] | null }) | null;
 };
 export type Owing = { userId: string; name: string; studentNumber: string | null; due: string; paid: string; balance: string; fees: { id: string; title: string; balance: string; pending: string }[] };
 export type OrgFinance = { canManage: boolean; totals: FinanceTotals; owing: Owing[]; owingTruncated: boolean; pending: OrgPayment[]; recent: OrgPayment[] };

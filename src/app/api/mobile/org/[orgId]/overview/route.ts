@@ -2,6 +2,7 @@ import { db } from "@/lib/database/client";
 import { json } from "@/lib/mobile/api";
 import { capabilitiesIn, orgAuthed } from "@/lib/mobile/org";
 import { orgFinance, recentPayments } from "@/lib/mobile/finance";
+import { checkinsByMonth, collectionsByMonth } from "@/lib/mobile/series";
 
 /**
  * The officer dashboard of one organization. Each block is included only when the caller's position in THIS organization
@@ -15,7 +16,7 @@ export const GET = orgAuthed(null, async (user, _request, orgId) => {
   startOfDay.setUTCHours(-8, 0, 0, 0); // Manila midnight
   if (startOfDay > now) startOfDay.setUTCDate(startOfDay.getUTCDate() - 1);
 
-  const [org, upcoming, drafts, members, joinRequests, checkins30, checkinsToday, announcements, announcementDrafts, documents, openEvaluations, openObligations, finance, pendingCount, recent] = await Promise.all([
+  const [org, upcoming, drafts, members, joinRequests, checkins30, checkinsToday, announcements, announcementDrafts, documents, openEvaluations, openObligations, finance, pendingCount, recent, checkinSeries, collectionSeries] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { id: true, name: true, acronym: true } }),
     db.event.count({ where: { organizationId: orgId, status: "PUBLISHED", endsAt: { gte: now } } }),
     caps["events.manage"] ? db.event.count({ where: { organizationId: orgId, status: "DRAFT" } }) : null,
@@ -31,6 +32,8 @@ export const GET = orgAuthed(null, async (user, _request, orgId) => {
     caps["fees.view_org"] ? orgFinance(orgId) : null,
     caps["fees.view_org"] ? db.payment.count({ where: { status: "PENDING", voidedAt: null, studentFee: { organizationId: orgId } } }) : null,
     caps["fees.view_org"] ? recentPayments(orgId, 5) : null,
+    caps["attendance.view_org"] ? checkinsByMonth(orgId) : null,
+    caps["fees.view_org"] ? collectionsByMonth(orgId) : null,
   ]);
 
   return json({
@@ -39,11 +42,11 @@ export const GET = orgAuthed(null, async (user, _request, orgId) => {
     capabilities: caps,
     events: { upcoming, drafts },
     members: members === null ? null : { count: members, pendingJoinRequests: joinRequests },
-    attendance: checkins30 === null ? null : { checkins30Days: checkins30, checkinsToday },
+    attendance: checkins30 === null ? null : { checkins30Days: checkins30, checkinsToday, byMonth: checkinSeries },
     announcements: announcements === null ? null : { published: announcements, drafts: announcementDrafts },
     documents: documents === null ? null : { count: documents },
     evaluations: openEvaluations === null ? null : { open: openEvaluations },
     obligations: openObligations === null ? null : { open: openObligations },
-    finance: finance && { ...finance.totals, pendingCount, recent },
+    finance: finance && { ...finance.totals, pendingCount, recent, byMonth: collectionSeries },
   });
 });
