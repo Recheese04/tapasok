@@ -5,6 +5,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { ErrorState, Loading } from "../src/components/ui";
 import { ApiError } from "../src/api/client";
+import { ToastProvider } from "../src/components/kit";
+import { OrgProvider } from "../src/org/OrgContext";
 import { colors } from "../src/theme";
 
 function Gate() {
@@ -29,6 +31,11 @@ function Gate() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="announcements" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="manage/finance" />
+        <Stack.Screen name="manage/announcements" />
+        <Stack.Screen name="manage/events" />
+        <Stack.Screen name="manage/members" />
+        <Stack.Screen name="manage/documents" />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="login" />
@@ -41,8 +48,12 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="light" />
-        <Gate />
+        <OrgProvider>
+          <ToastProvider>
+            <StatusBar style="light" />
+            <Gate />
+          </ToastProvider>
+        </OrgProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

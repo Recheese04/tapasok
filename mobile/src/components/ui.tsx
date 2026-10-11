@@ -1,8 +1,8 @@
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewProps, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewProps, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { ApiError } from "../api/client";
 import { colors, radius, shadow, space, type } from "../theme";
 import { initials } from "../format";
@@ -92,8 +92,9 @@ export function Badge({ label, tone = "blue" }: { label: string; tone?: Tone }) 
 
 /** Row of pill filter chips; the selected one is solid blue. */
 export function Chips<T extends string>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  // Scrolls sideways on narrow phones instead of clipping the last chip.
   return (
-    <View style={{ flexDirection: "row", gap: space.sm }}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }} style={{ flexGrow: 0 }}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -102,7 +103,7 @@ export function Chips<T extends string>({ options, value, onChange }: { options:
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -142,12 +143,35 @@ export function Button({ label, onPress, loading, disabled, variant = "primary",
   );
 }
 
-export function Loading() {
+export function Skeleton({ height = 16, width = "100%", r = 8 }: { height?: number; width?: number | `${number}%`; r?: number }) {
+  const o = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(o, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(o, { toValue: 0.45, duration: 700, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [o]);
+  return <Animated.View accessibilityElementsHidden style={{ height, width, borderRadius: r, backgroundColor: "#DDE2EF", opacity: o }} />;
+}
+
+export function SkeletonCards({ count = 3 }: { count?: number }) {
   return (
-    <View style={s.center}>
-      <ActivityIndicator size="large" color={colors.blue} />
+    <View style={{ padding: space.lg, gap: space.md }} accessibilityLabel="Loading">
+      {Array.from({ length: count }, (_, i) => (
+        <View key={i} style={[s.card, { flexDirection: "row", gap: space.md, alignItems: "center" }]}>
+          <Skeleton height={44} width={44} r={12} />
+          <View style={{ flex: 1, gap: 8 }}><Skeleton height={14} width="70%" /><Skeleton height={12} width="45%" /></View>
+        </View>
+      ))}
     </View>
   );
+}
+
+/** Placeholder shown while a screen's data loads. */
+export function Loading() {
+  return <SkeletonCards />;
 }
 
 export function Empty({ icon = "file-tray-outline", title, text }: { icon?: IconName; title: string; text?: string }) {
@@ -188,17 +212,17 @@ export function Row({ icon, tone, title, sub, right, onPress }: { icon: IconName
 }
 
 const s = StyleSheet.create({
-  header: { paddingHorizontal: space.lg, paddingBottom: space.xl, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, gap: space.md },
+  header: { paddingHorizontal: space.lg, paddingBottom: space.lg + 4, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, gap: space.md },
   headerRow: { flexDirection: "row", alignItems: "center", gap: space.md },
-  headerSub: { color: "#C9D4FF", fontSize: 13 },
-  headerTitle: { color: colors.white, fontSize: 24, fontWeight: "800" },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
+  headerSub: { color: colors.onBlueMuted, fontSize: 13, fontWeight: "500" },
+  headerTitle: { color: colors.white, fontSize: 22, lineHeight: 28, fontWeight: "800", letterSpacing: -0.3 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 2, borderColor: "rgba(255,255,255,0.6)", alignItems: "center", justifyContent: "center" },
   avatarText: { color: colors.white, fontWeight: "800" },
-  card: { backgroundColor: colors.card, borderRadius: radius.md, padding: space.lg, ...shadow },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  card: { backgroundColor: colors.card, borderRadius: radius.md, padding: space.lg, borderWidth: 1, borderColor: colors.border, ...shadow },
+  chip: { minHeight: 40, justifyContent: "center", paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   chipOn: { backgroundColor: colors.blue, borderColor: colors.blue },
   chipText: { color: colors.text, fontWeight: "600", fontSize: 13 },
-  button: { minHeight: 48, borderRadius: radius.pill, paddingHorizontal: space.xl, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
+  button: { minHeight: 50, borderRadius: radius.pill, paddingHorizontal: space.xl, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
   center: { alignItems: "center", justifyContent: "center", padding: space.xxl },
 });

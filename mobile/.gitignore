@@ -3,3 +3,5 @@ node_modules
 dist
 .env
 expo-env.d.ts
+dist-web
+dist-web2

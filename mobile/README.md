@@ -16,6 +16,33 @@ System Administrator accounts are not supported on mobile: they get a "web only"
 
 Loading, empty, offline and error states (with retry) are on every data screen.
 
+## Role-based experience
+
+Every account gets the full member experience (Home, Events, Scan, Account, My Organizations, My Fees, announcements,
+notifications, profile). Officers get **additional** organization tools for the *active organization*, chosen with the
+organization chip on Home / Manage. A person can be President in one organization and a member in another; the tools
+follow the position held in the selected organization, while personal features never change.
+
+| Position | Home leads with | Manage tab |
+| --- | --- | --- |
+| Member | next event, attendance, balance, announcements | hidden |
+| President | members, events, check-ins, join requests, finance strip, payments to verify | Events, Finance, Announcements, Members, Documents |
+| Treasurer | collected / outstanding / awaiting verification, payments to verify, recent payments | Finance (verify, reject, record payment), Members |
+| Secretary | members, join requests, documents, events | Events, Announcements, Members, Documents |
+| Auditor | read-only finance summary and recent payments | Finance (read-only), Members |
+| Adviser | members, attendance, finance (read-only), evaluations | Finance (read-only), Members |
+| Officer | events, check-ins, obligations, drafts | Events, Members |
+
+What each position receives comes from `GET /api/mobile/org/{orgId}/overview`, which returns a `capabilities` map from the
+same policy table as the web (`src/lib/permissions/policy.ts`). The app only mirrors it; every organization route checks
+membership and the exact capability again, so hiding a button is never the protection.
+
+Organization endpoints: `overview`, `finance`, `payments/{id}` (confirm/reject), `fees/{id}/payments` (record payment),
+`announcements` (+ status), `events` (+ status, session open/close), `members`, `documents`.
+
+Not on mobile (web only): file upload/download, audiences and multi-session events, join-request review, consequence rules,
+evaluations, reports export, user and system administration.
+
 ## Run it
 
 ```bash

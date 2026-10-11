@@ -21,3 +21,30 @@ export type Organization = { id: string; name: string; acronym: string | null; d
 export type Payment = { id: string; amount: string; method: string; status: string; receiptCode: string; paidAt: string; rejectionReason: string | null };
 export type Fee = { id: string; title: string; kind: string; organization: string; dueDate: string | null; amountDue: string; adjustments: string; paid: string; pending: string; balance: string; status: string; payments: Payment[] };
 export type Notice = { id: string; kind: string; title: string; body: string | null; at: string; read: boolean };
+
+// ---- Organization tools (officers). Every field comes from /api/mobile/org/[orgId]/*; the server decides what each position receives.
+export type CapabilityKey =
+  | "members.basic" | "members.roster" | "joinrequests.review" | "events.manage" | "attendance.view_org" | "announcements.manage"
+  | "documents.manage" | "fees.view_org" | "fees.manage" | "reports.finance" | "evaluations.results" | "evaluations.manage" | "obligations.view_org";
+export type Caps = Record<CapabilityKey, boolean>;
+export type FinanceTotals = { assessed: string; collected: string; pendingVerification: string; outstanding: string; collectionRate: number | null; assessments: number; membersAssessed: number; membersWithBalance: number };
+export type OrgPayment = { id: string; amount: string; method: string; status: string; reference: string | null; receiptCode: string; at: string; member: string; fee: string };
+export type OrgOverview = {
+  organization: { id: string; name: string; acronym: string | null };
+  roles: { role: string; title: string | null }[];
+  capabilities: Caps;
+  events: { upcoming: number; drafts: number | null };
+  members: { count: number; pendingJoinRequests: number | null } | null;
+  attendance: { checkins30Days: number; checkinsToday: number } | null;
+  announcements: { published: number; drafts: number | null } | null;
+  documents: { count: number } | null;
+  evaluations: { open: number } | null;
+  obligations: { open: number } | null;
+  finance: (FinanceTotals & { pendingCount: number | null; recent: OrgPayment[] | null }) | null;
+};
+export type Owing = { userId: string; name: string; studentNumber: string | null; due: string; paid: string; balance: string; fees: { id: string; title: string; balance: string; pending: string }[] };
+export type OrgFinance = { canManage: boolean; totals: FinanceTotals; owing: Owing[]; owingTruncated: boolean; pending: OrgPayment[]; recent: OrgPayment[] };
+export type ManagedAnnouncement = { id: string; title: string; body: string; status: "DRAFT" | "PUBLISHED"; at: string };
+export type ManagedEvent = { id: string; title: string; venue: string | null; status: "DRAFT" | "PUBLISHED" | "CANCELLED"; startsAt: string; endsAt: string; checkIns: number; sessions: { id: string; label: string; active: boolean; finalized: boolean }[] };
+export type OrgMember = { userId: string; name: string; role: string; title: string | null; studentNumber: string | null; yearLevel: number | null; email?: string };
+export type OrgDocument = { id: string; title: string; description: string | null; fileName: string; category: string; sizeBytes: number; at: string };
