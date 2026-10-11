@@ -22,16 +22,10 @@ export type AuthUser = {
 };
 
 /**
- * Resolves the signed-in user from the session cookie, validated against the database
- * on every request (so logout, expiry and disabled accounts take effect immediately).
- * Memoized per request.
+ * Resolves the signed-in user from a raw session token (cookie or mobile bearer token), validated against the database:
+ * the session must exist, be unexpired, and belong to an ACTIVE account. Returns null otherwise.
  */
-export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
-  // The session is validated against the database and the clock on every request: explicitly request-time work.
-  await connection();
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-
+export async function loadUserByToken(token: string): Promise<AuthUser | null> {
   const session = await db.session.findUnique({
     where: { tokenHash: hashToken(token) },
     include: {
@@ -62,6 +56,14 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
       title: m.title,
     })),
   };
+}
+
+export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
+  // The session is validated against the database and the clock on every request: explicitly request-time work.
+  await connection();
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  return loadUserByToken(token);
 });
 
 export async function requireUser(): Promise<AuthUser> {

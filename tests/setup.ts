@@ -17,9 +17,10 @@ vi.mock("next/headers", () => ({
 
 // Replace the session layer: tests choose who is "signed in" via authState.
 // Everything downstream (permissions, actions, services, database) is the real code.
-vi.mock("@/lib/auth/dal", async () => {
+vi.mock("@/lib/auth/dal", async (importOriginal) => {
   const { authState } = await import("./helpers/auth-state");
   return {
+    ...(await importOriginal<typeof import("@/lib/auth/dal")>()), // keeps loadUserByToken (used by the mobile API)
     getCurrentUser: async () => authState.user,
     requireUser: async () => {
       if (!authState.user) throw new Error("NEXT_REDIRECT:/login");
