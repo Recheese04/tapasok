@@ -48,3 +48,10 @@ export type ManagedAnnouncement = { id: string; title: string; body: string; sta
 export type ManagedEvent = { id: string; title: string; venue: string | null; status: "DRAFT" | "PUBLISHED" | "CANCELLED"; startsAt: string; endsAt: string; checkIns: number; sessions: { id: string; label: string; active: boolean; finalized: boolean }[] };
 export type OrgMember = { userId: string; name: string; role: string; title: string | null; studentNumber: string | null; yearLevel: number | null; email?: string };
 export type OrgDocument = { id: string; title: string; description: string | null; fileName: string; category: string; sizeBytes: number; at: string };
+export type MemberDetail = {
+  userId: string; name: string; email?: string; studentNumber: string | null; yearLevel: number | null; program: string | null;
+  positions: { role: string; title: string | null }[]; memberSince: string;
+  attendance: null | { counts: Record<"PRESENT" | "LATE" | "ABSENT" | "EXCUSED", number>; rate: number | null; onTimeRate: number | null; recent: { id: string; status: string; at: string; session: string; event: string; eventId: string }[] };
+  finance: null | { due: string; paid: string; pending: string; balance: string; fees: { id: string; title: string; due: string; paid: string; balance: string; status: string }[] };
+  obligations: null | { id: string; title: string; status: string; dueAt: string | null }[];
+};

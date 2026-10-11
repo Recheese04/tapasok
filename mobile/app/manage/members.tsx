@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { StyleSheet, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../src/api/client";
@@ -36,16 +36,18 @@ export default function Members() {
       </ScreenHeader>
       {loading && !data ? <Loading /> : error && !data ? <ErrorState error={error} onRetry={reload} /> : (
         <Body tabs={false} refreshing={refreshing} onRefresh={refresh}>
-          <Txt variant="caption">{rows.length} of {all.length}</Txt>
+          <Txt variant="caption">{rows.length} of {all.length} · tap a member for their record</Txt>
           {rows.length === 0 ? <Empty icon="search-outline" title="No members found" text="Try another name or student number." /> : (
             <ListGroup>
               {rows.map((m) => (
-                <View key={m.userId + m.role} style={{ flexDirection: "row", alignItems: "center", paddingLeft: space.lg }}>
+                <Pressable key={m.userId + m.role} onPress={() => router.push({ pathname: "/manage/member/[userId]", params: { userId: m.userId } })} accessibilityRole="button" accessibilityLabel={`${m.name}. View attendance and record`}
+                  style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", paddingLeft: space.lg }, pressed && { backgroundColor: colors.surfaceAlt }]}>
                   <Avatar first={m.name.split(" ")[0] ?? ""} last={m.name.split(" ").slice(-1)[0] ?? ""} size={40} />
-                  <View style={{ flex: 1 }}>
-                    <ListItem title={m.name} subtitle={[m.studentNumber ?? "No student number", m.yearLevel ? `Year ${m.yearLevel}` : null].filter(Boolean).join(" · ")} meta={m.email} right={m.role !== "MEMBER" ? <Badge label={roleLabel(m.role, m.title)} tone="violet" /> : undefined} />
+                  <View style={{ flex: 1 }} pointerEvents="none">
+                    <ListItem title={m.name} subtitle={[m.studentNumber ?? "No student number", m.yearLevel ? `Year ${m.yearLevel}` : null].filter(Boolean).join(" · ")} meta={m.email} chevron
+                      right={m.role !== "MEMBER" ? <Badge label={roleLabel(m.role, m.title)} tone="violet" /> : undefined} />
                   </View>
-                </View>
+                </Pressable>
               ))}
             </ListGroup>
           )}

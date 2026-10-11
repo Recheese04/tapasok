@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import type { ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
+import type { MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
 
 const BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 const TOKEN_KEY = "tapasok_token";
@@ -80,5 +80,6 @@ export const api = {
   setEventStatus: (orgId: string, id: string, status: "DRAFT" | "PUBLISHED" | "CANCELLED") => request<{ ok: true }>("POST", `/org/${orgId}/events/${id}/status`, { status }),
   setSessionActive: (orgId: string, eventId: string, sessionId: string, active: boolean) => request<{ ok: true }>("POST", `/org/${orgId}/events/${eventId}/sessions/${sessionId}`, { active }),
   orgMembers: (orgId: string) => get<{ members: OrgMember[] }>(`/org/${orgId}/members`),
+  orgMember: (orgId: string, userId: string) => get<MemberDetail>(`/org/${orgId}/members/${userId}`),
   orgDocuments: (orgId: string) => get<{ canManage: boolean; documents: OrgDocument[] }>(`/org/${orgId}/documents`),
 };

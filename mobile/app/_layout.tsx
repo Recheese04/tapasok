@@ -52,6 +52,7 @@ function Gate() {
         <Stack.Screen name="manage/announcements" />
         <Stack.Screen name="manage/events" />
         <Stack.Screen name="manage/members" />
+        <Stack.Screen name="manage/member/[userId]" />
         <Stack.Screen name="manage/documents" />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>

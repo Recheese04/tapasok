@@ -10,6 +10,7 @@ import { POST as eventStatus } from "@/app/api/mobile/org/[orgId]/events/[id]/st
 import { POST as sessionToggle } from "@/app/api/mobile/org/[orgId]/events/[id]/sessions/[sessionId]/route";
 import { GET as membersGet } from "@/app/api/mobile/org/[orgId]/members/route";
 import { GET as docsGet } from "@/app/api/mobile/org/[orgId]/documents/route";
+import { GET as memberGet } from "@/app/api/mobile/org/[orgId]/members/[userId]/route";
 import { GET as memberEvents } from "@/app/api/mobile/events/route";
 import { GET as memberAnnouncements } from "@/app/api/mobile/announcements/route";
 import { GET as memberNotifications } from "@/app/api/mobile/notifications/route";
@@ -256,6 +257,47 @@ describe("mobile org dashboards: each position gets its own capabilities, enforc
     const asMember = await data(await docsGet(req(await tokenFor(w.a.MEMBER.id)), O(w.orgA.id)));
     expect(asMember).toMatchObject({ canManage: false, documents: [{ title: "Minutes" }] });
     expect((await data(await docsGet(req(await tokenFor(w.a.SECRETARY.id)), O(w.orgA.id)))).canManage).toBe(true);
+  });
+
+  it("member detail: attendance rate and fees counted for this organization only, each block gated by its capability", async () => {
+    const w = await makeWorld();
+    const { makeEvent } = await import("./helpers/world");
+    const ev = await makeEvent(w.orgA.id, { sessions: 4 });
+    const m = w.a.MEMBER.id;
+    const rec = (i: number, status: "PRESENT" | "LATE" | "ABSENT" | "EXCUSED") => db.attendanceRecord.create({ data: { eventId: ev.id, sessionId: ev.sessions[i].id, userId: m, status, source: "QR_SELF" } });
+    await rec(0, "PRESENT"); await rec(1, "LATE"); await rec(2, "ABSENT"); await rec(3, "EXCUSED");
+    // the same member's records in another organization never count here
+    await addMembership(m, w.orgB.id, "MEMBER");
+    const evB = await makeEvent(w.orgB.id);
+    await db.attendanceRecord.create({ data: { eventId: evB.id, sessionId: evB.session.id, userId: m, status: "ABSENT", source: "QR_SELF" } });
+    const ft = await db.feeType.create({ data: { organizationId: w.orgA.id, name: "Dues", amount: 100 } });
+    const fee = await db.studentFee.create({ data: { organizationId: w.orgA.id, userId: m, feeTypeId: ft.id, title: "Dues", amountDue: 100 } });
+    await db.payment.create({ data: { studentFeeId: fee.id, amount: 30, method: "CASH", status: "CONFIRMED", receiptCode: "TPK-M-1" } });
+    const C = ctx({ orgId: w.orgA.id, userId: m });
+
+    const pres = await data(await memberGet(req(await tokenFor(w.a.PRESIDENT.id)), C));
+    expect(pres.attendance.counts).toEqual({ PRESENT: 1, LATE: 1, ABSENT: 1, EXCUSED: 1 });
+    expect(pres.attendance.rate).toBe(67); // 2 attended of 3 counted; excused is not held against them
+    expect(pres.attendance.recent).toHaveLength(4);
+    expect(pres.finance).toMatchObject({ due: "100.00", paid: "30.00", balance: "70.00" });
+    expect(pres.email).toContain("@");
+
+    const treas = await data(await memberGet(req(await tokenFor(w.a.TREASURER.id)), C));
+    expect(treas.attendance).toBeNull(); // treasurer cannot see attendance
+    expect(treas.finance.balance).toBe("70.00");
+    expect(treas.email).toBeUndefined();
+    const officer = await data(await memberGet(req(await tokenFor(w.a.OFFICER.id)), C));
+    expect(officer.attendance.rate).toBe(67);
+    expect(officer.finance).toBeNull(); // officer cannot see fees
+
+    // members cannot open anyone's record; another org's officer cannot either; non-members of the org are not found
+    expect((await memberGet(req(await tokenFor(w.a.MEMBER.id)), C)).status).toBe(403);
+    expect((await memberGet(req(await tokenFor(w.presidentB.id)), C)).status).toBe(403);
+    expect((await memberGet(req(await tokenFor(w.presidentB.id)), ctx({ orgId: w.orgB.id, userId: w.a.TREASURER.id }))).status).toBe(404);
+    // via Org B the same member shows only Org B data
+    const viaB = await data(await memberGet(req(await tokenFor(w.presidentB.id)), ctx({ orgId: w.orgB.id, userId: m })));
+    expect(viaB.attendance.counts).toEqual({ PRESENT: 0, LATE: 0, ABSENT: 1, EXCUSED: 0 });
+    expect(viaB.finance.fees).toHaveLength(0);
   });
 
   it("rejects missing/invalid tokens and system administrators on every organization route", async () => {
