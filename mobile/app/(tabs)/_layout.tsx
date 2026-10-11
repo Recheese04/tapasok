@@ -41,8 +41,11 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
     const t = TABS[name];
     const on = current === name;
     return (
-      <Pressable key={name} onPress={() => go(name)} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} style={({ pressed }) => [s.tab, pressed && { opacity: 0.7 }]}>
-        <View style={[s.iconPill, on && s.iconPillOn]}>
+      <Pressable key={name} onPress={() => go(name)} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} style={s.tab}>
+        {/* The white pill is always mounted and only fades in or out. Toggling a view's background on Android can redraw it
+            without its rounded corners after navigating back, which showed a square box. */}
+        <View style={s.iconPill}>
+          <View pointerEvents="none" style={[s.pillBg, { opacity: on ? 1 : 0 }]} />
           <Ionicons name={on ? t.active : t.icon} size={22} color={on ? colors.navy900 : colors.onDarkMuted} />
         </View>
         <Text style={[s.label, on && s.labelOn]} numberOfLines={1}>{t.label}</Text>
@@ -59,7 +62,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
         <View style={s.barBg} />
         <View style={s.side}>{LEFT.map(tab)}</View>
         <View style={s.centerSlot}>
-          <Pressable onPress={() => go("scan")} accessibilityRole="tab" accessibilityLabel="Scan" accessibilityState={{ selected: scanOn }} style={({ pressed }) => [s.scan, scanOn && s.scanOn, pressed && { transform: [{ scale: 0.95 }] }]}>
+          <Pressable onPress={() => go("scan")} accessibilityRole="tab" accessibilityLabel="Scan" accessibilityState={{ selected: scanOn }} style={[s.scan, { borderColor: scanOn ? colors.onDark : colors.bg }]}>
             <Ionicons name="scan" size={30} color={colors.navy900} />
           </Pressable>
           <Text style={[s.label, scanOn && s.labelOn]}>Scan</Text>
@@ -90,11 +93,10 @@ const s = StyleSheet.create({
   barBg: { position: "absolute", left: 0, right: 0, bottom: 0, height: 72, backgroundColor: colors.navy900, borderRadius: radius.xl, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", ...elevation.lg },
   side: { flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "flex-end" },
   tab: { flex: 1, maxWidth: 88, minHeight: 56, alignItems: "center", justifyContent: "flex-end", gap: 3 },
-  iconPill: { width: 52, height: 32, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  iconPillOn: { backgroundColor: colors.onDark },
+  iconPill: { width: 52, height: 32, alignItems: "center", justifyContent: "center" },
+  pillBg: { position: "absolute", top: 0, left: 0, width: 52, height: 32, borderRadius: 16, backgroundColor: colors.onDark },
   label: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14, color: colors.onDarkMuted },
   labelOn: { fontFamily: fonts.extrabold, color: colors.onDark },
   centerSlot: { width: SCAN + 20, alignItems: "center", justifyContent: "flex-end", gap: 3 },
-  scan: { width: SCAN, height: SCAN, borderRadius: SCAN / 2, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", borderWidth: 5, borderColor: colors.bg, ...elevation.md },
-  scanOn: { borderColor: colors.onDark },
+  scan: { width: SCAN, height: SCAN, borderRadius: SCAN / 2, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", borderWidth: 5, ...elevation.md },
 });
