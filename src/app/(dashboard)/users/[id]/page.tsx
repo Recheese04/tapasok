@@ -11,6 +11,8 @@ import { SetupLinkForm } from "@/features/students/student-forms";
 import { getUserForAdmin, organizationOptions } from "@/features/users/queries";
 import { AssignMembershipForm, StatusPanel, SystemAdminPanel } from "@/features/users/panels";
 import { UserForm } from "@/features/users/user-form";
+import { RfidPanel } from "@/features/users/rfid-panel";
+import { db } from "@/lib/database/client";
 import { ACCOUNT_TYPE_LABEL, type AccountType } from "@/features/users/types";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
@@ -22,7 +24,10 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   const admin = await requireSystemPermissionPage("users.manage");
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
-  const [user, tree, orgs] = await Promise.all([getUserForAdmin(id), academicTree(), organizationOptions()]);
+  const [user, tree, orgs, devices] = await Promise.all([
+    getUserForAdmin(id), academicTree(), organizationOptions(),
+    db.scannerDevice.findMany({ where: { active: true }, orderBy: [{ organization: { name: "asc" } }, { name: "asc" }], select: { id: true, name: true, lastSeenAt: true, organization: { select: { name: true } } } }),
+  ]);
   if (!user) notFound();
 
   const sp = user.studentProfile;
@@ -82,6 +87,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         {user.status !== "DISABLED" && <AssignMembershipForm userId={user.id} organizations={orgs} />}
       </section>
 
+      {sp ? <RfidPanel userId={user.id} current={sp.rfidUid ?? null} devices={devices.map((d) => ({ id: d.id, name: d.name, organization: d.organization.name, lastSeenAt: d.lastSeenAt?.toISOString() ?? null }))} /> : null}
       <UserForm tree={tree} values={values} />
       <StatusPanel userId={user.id} status={user.status} isSelf={isSelf} />
       <SystemAdminPanel userId={user.id} isAdmin={user.systemRole === "SYSTEM_ADMIN"} isSelf={isSelf} status={user.status} />

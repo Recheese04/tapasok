@@ -67,6 +67,7 @@ model User {
   fees                StudentFee[]
   announcements       Announcement[]
   enrollments         StudentEnrollment[]
+  rfidEnrollments     RfidEnrollment[]
   joinRequests        JoinRequest[]          @relation("JoinRequestUser")
   decidedRequests     JoinRequest[]          @relation("JoinRequestDecider")
   notifications       Notification[]
@@ -852,10 +853,32 @@ model ScannerDevice {
   createdById    String?   @map("created_by_id") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  enrollments  RfidEnrollment[]
 
   @@unique([organizationId, name])
   @@map("scanner_devices")
+}
+
+// "Tap to register": an administrator opens a short window on one terminal; the next card tapped there is assigned to the
+// student instead of being recorded as attendance. Kept as history (who registered which card, on which device, when).
+model RfidEnrollment {
+  id          String    @id @default(uuid()) @db.Uuid
+  deviceId    String    @map("device_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  createdById String?   @map("created_by_id") @db.Uuid
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  cardUid     String?   @map("card_uid")
+  failure     String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  device ScannerDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([deviceId, expiresAt])
+  @@map("rfid_enrollments")
 }
 
 // ---------------------------------------------------------------- Stage C/D: consequences, ledger, clearance, communication
