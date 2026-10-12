@@ -35,7 +35,7 @@ describe("optional shared default password for new accounts", () => {
     expect(u).toMatchObject({ status: "ACTIVE", systemRole: "USER" });
     expect(u.activationTokens).toHaveLength(0);
     expect(u.passwordHash).not.toContain("password"); // only a hash is stored
-    await expect(loginAction({}, form({ email: "b@x.test", password: "password" }))).rejects.toThrow("NEXT_REDIRECT:/dashboard");
+    await expect(loginAction({}, form({ email: "b@x.test", password: "password" }))).rejects.toThrow("NEXT_REDIRECT:/change-password"); // must choose their own first
     expect((await loginAction({}, form({ email: "b@x.test", password: "wrong-password" }))).error).toBe("Invalid email or password.");
   });
 
@@ -55,6 +55,6 @@ describe("optional shared default password for new accounts", () => {
     expect(done.summary).toMatchObject({ dryRun: false, created: 2, failed: 0, initialPassword: "password" });
     expect(done.summary?.links).toEqual([]);
     expect(await db.user.count({ where: { email: { endsWith: "@x.test" }, status: "ACTIVE", systemRole: "USER" } })).toBe(2);
-    await expect(loginAction({}, form({ email: "ana@x.test", password: "password" }))).rejects.toThrow("NEXT_REDIRECT:/dashboard");
+    await expect(loginAction({}, form({ email: "ana@x.test", password: "password" }))).rejects.toThrow("NEXT_REDIRECT:/change-password");
   });
 });

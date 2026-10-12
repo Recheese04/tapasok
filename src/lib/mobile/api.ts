@@ -47,6 +47,7 @@ export function authed<C = unknown>(handler: Handler<C>) {
     const user = token ? await loadUserByToken(token) : null;
     if (!user) return fail(401, "UNAUTHORIZED", "Please sign in again.");
     if (user.systemRole === "SYSTEM_ADMIN") return fail(403, "ADMIN_WEB_ONLY", "System administration is available on the Tapasok web app.");
+    if (user.mustChangePassword) return fail(403, "PASSWORD_CHANGE_REQUIRED", "Choose your own password on the Tapasok website first, then sign in again.");
     try {
       return await handler(user, request, ctx);
     } catch (e) {

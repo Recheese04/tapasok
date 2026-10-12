@@ -43,7 +43,7 @@ export async function createStaff(actorId: string, fields: StaffFields, credenti
   try {
     const user = await db.user.create({
       data: {
-        email: fields.email, passwordHash: cred.hash, firstName: fields.firstName, lastName: fields.lastName, status: cred.active ? "ACTIVE" : "INVITED",
+        email: fields.email, passwordHash: cred.hash, mustChangePassword: cred.initialPassword !== null, firstName: fields.firstName, lastName: fields.lastName, status: cred.active ? "ACTIVE" : "INVITED",
         // systemRole stays USER; no organization position is created here.
         staffProfile: { create: { employeeId: fields.employeeId, middleName: fields.middleName ?? null, contactNumber: fields.contactNumber ?? null, collegeId: fields.collegeId ?? null, departmentId: fields.departmentId ?? null, jobTitle: fields.jobTitle ?? null } },
         ...(cred.active ? {} : { activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } } }),

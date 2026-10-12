@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 import { db } from "@/lib/database/client";
-import { requireUser } from "@/lib/auth/dal";
+import { requireUser, requireUserForPasswordChange } from "@/lib/auth/dal";
+import { weakPasswordReason } from "@/lib/security/password-policy";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { currentSessionHash } from "@/lib/auth/session";
 import { assertSystemPermission } from "@/lib/permissions";
@@ -24,7 +25,7 @@ export async function updateProfileAction(_prev: SettingsState, fd: FormData): P
 }
 
 export async function changePasswordAction(_prev: SettingsState, fd: FormData): Promise<SettingsState> {
-  const user = await requireUser();
+  const user = await requireUserForPasswordChange();
   const parsed = z.object({ current: z.string().min(1, "Enter your current password.").max(200), password: passwordSchema, confirm: z.string() })
     .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "Passwords do not match." })
     .safeParse({ current: fd.get("current"), password: fd.get("password"), confirm: fd.get("confirm") });
@@ -32,10 +33,12 @@ export async function changePasswordAction(_prev: SettingsState, fd: FormData): 
 
   const row = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { passwordHash: true } });
   if (!(await verifyPassword(parsed.data.current, row.passwordHash))) return { fieldErrors: { current: "Your current password is incorrect." } };
+  const weak = weakPasswordReason(parsed.data.password, parsed.data.current, user.email);
+  if (weak) return { fieldErrors: { password: weak } };
 
   const keep = await currentSessionHash();
   await db.$transaction([
-    db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password) } }),
+    db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password), mustChangePassword: false } }),
     // Sign out every other device; this one stays signed in.
     db.session.deleteMany({ where: { userId: user.id, ...(keep ? { tokenHash: { not: keep } } : {}) } }),
     db.auditLog.create({ data: { actorUserId: user.id, action: "auth.password_change", targetType: "user", targetId: user.id } }),

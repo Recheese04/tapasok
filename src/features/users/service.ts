@@ -29,6 +29,7 @@ export async function createPlainAccount(
       data: {
         ...input,
         passwordHash: cred.hash,
+        mustChangePassword: cred.initialPassword !== null,
         status: cred.active ? "ACTIVE" : "INVITED",
         // systemRole intentionally not set: new accounts are always regular users.
         ...(cred.active ? {} : { activationTokens: { create: { tokenHash: t.tokenHash, expiresAt: t.expiresAt, createdById: actorId } } }),

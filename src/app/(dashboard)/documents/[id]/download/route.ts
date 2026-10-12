@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { db } from "@/lib/database/client";
-import { getCurrentUser } from "@/lib/auth/dal";
+import { getActiveUser } from "@/lib/auth/dal";
 import { canOrg } from "@/lib/permissions/policy";
 import { readBytes, safeFileName } from "@/features/documents/storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+  const user = await getActiveUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const { id } = await params;
@@ -22,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       "Content-Type": doc.mimeType,
       "Content-Disposition": `attachment; filename="${safeFileName(doc.fileName)}"`,
       "Content-Length": String(bytes.length),
-      "X-Content-Type-Options": "nosniff",
+      "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
       "Cache-Control": "private, no-store",
     },
   });

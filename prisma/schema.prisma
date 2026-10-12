@@ -39,19 +39,21 @@ enum OrganizationRole {
 }
 
 model User {
-  id               String     @id @default(uuid()) @db.Uuid
-  email            String     @unique // stored lowercase; normalized in application code
-  passwordHash     String     @map("password_hash")
-  firstName        String     @map("first_name")
-  lastName         String     @map("last_name")
-  studentNumber    String?    @unique @map("student_number")
-  systemRole       SystemRole @default(USER) @map("system_role")
-  status           UserStatus @default(ACTIVE)
-  failedLoginCount Int        @default(0) @map("failed_login_count")
-  lockedUntil      DateTime?  @map("locked_until") @db.Timestamptz(3)
-  lastLoginAt      DateTime?  @map("last_login_at") @db.Timestamptz(3)
-  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String     @id @default(uuid()) @db.Uuid
+  email              String     @unique // stored lowercase; normalized in application code
+  passwordHash       String     @map("password_hash")
+  firstName          String     @map("first_name")
+  lastName           String     @map("last_name")
+  studentNumber      String?    @unique @map("student_number")
+  systemRole         SystemRole @default(USER) @map("system_role")
+  status             UserStatus @default(ACTIVE)
+  failedLoginCount   Int        @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?  @map("locked_until") @db.Timestamptz(3)
+  // Set when the account was given the shared default password: the person must choose their own before using Tapasok.
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   sessions            Session[]
   memberships         OrganizationMember[]
@@ -1048,4 +1050,13 @@ model StaffProfile {
   department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
   @@map("staff_profiles")
+}
+
+// Fixed-window request counters for abuse-prone endpoints (sign-in by IP and by email). Works across serverless instances.
+model RateLimit {
+  key         String   @id
+  windowStart DateTime @map("window_start") @db.Timestamptz(3)
+  count       Int      @default(0)
+
+  @@map("rate_limits")
 }

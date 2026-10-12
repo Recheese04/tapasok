@@ -1,0 +1,63 @@
+# Tapasok security overview
+
+What protects the system today, and what is deliberately out of scope or still open. Every item marked "tested" has an
+automated test in `tests/` that runs against a real PostgreSQL database.
+
+## Authentication and sessions
+
+| Control | Details | Tested |
+|---|---|---|
+| Password storage | bcrypt, cost 12. Plain passwords are never stored or logged. | yes |
+| Password rules | At least 10 characters, at most 72 bytes. Refuses the shared starting password, common passwords, passwords containing the email name, and reusing the current password. | yes (`security.test.ts`) |
+| Account lockout | 5 wrong passwords lock that account for 15 minutes. | yes |
+| Network rate limit | 30 failed sign-ins per network address per 15 minutes (web and mobile share the counter). Successful sign-ins are not counted, so a shared campus address is not blocked. | yes |
+| No user enumeration | Unknown email and wrong password give the identical response; a hash comparison always runs so timing matches. | yes |
+| Shared starting password | Accounts created with `DEFAULT_ACCOUNT_PASSWORD` are flagged and can do nothing except choose their own password (web) — the mobile API refuses them. | yes |
+| Web sessions | Random 256-bit token; only its SHA-256 hash is stored. Cookie `__Host-tapasok_session`: HttpOnly, Secure, SameSite=Lax, 8-hour lifetime. Changing the password signs out other devices. | yes |
+| Mobile sessions | Same table, Bearer token, 30 days; re-validated on every request; logout, expiry and deactivation take effect immediately. System administrators cannot use the mobile API. | yes |
+| Account setup links | Single-use, 14-day, only the hash stored; claimed atomically. | yes |
+| Open redirects | `next` after sign-in is limited to an allow-list of internal paths. | yes |
+
+## Authorization
+
+- Every server action and API route checks the caller's capability **in the specific organization** using one policy
+  table (`src/lib/permissions/policy.ts`). Hiding a button is never the protection.
+- IDs in URLs are verified against the caller's memberships (other organizations' records return 404 / 403).
+- System administration (`users.manage` etc.) is separate from organization positions; no position grants it.
+- Organization, member, finance, payment and RFID routes are covered by permission tests for every position.
+
+## Input, files and output
+
+- All inputs are validated with Zod on the server; database access is through Prisma (parameterised).
+- No `dangerouslySetInnerHTML`; React escapes all output.
+- CSV exports neutralise spreadsheet formulas (`=`, `+`, `-`, `@`).
+- Uploads: extension allow-list **and** magic-byte check, 10 MB limit, random storage key (the user's file name never
+  touches the path), served only through authorised routes with `nosniff` and a sandboxing CSP.
+
+## HTTP headers (all routes)
+
+`Content-Security-Policy` (self only, no framing, no plugins, `base-uri`/`form-action` locked),
+`Strict-Transport-Security` (2 years, preload), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera only for this site; microphone and
+geolocation off), `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`; the `X-Powered-By` header is removed.
+
+Note: `script-src` includes `'unsafe-inline'` because Next.js inlines its bootstrap script; moving to per-request
+nonces would make every page dynamic. All other sources are restricted.
+
+## Auditing
+
+Sign-ins (success, failure, rate-limited), password changes, payments, ledger adjustments, card registrations,
+document downloads, exports and administrative changes are written to `audit_logs` with the actor.
+
+## Known gaps / out of scope
+
+- **Uploaded files on Vercel** are written to the server's disk, which Vercel does not keep. Move to object storage
+  (e.g. Supabase Storage) before relying on uploads in production.
+- **`DEFAULT_ACCOUNT_PASSWORD`** should be removed from the production environment so new accounts use one-time setup
+  links. While it is set, anyone who knows the shared password could sign in to an account that has not yet chosen its
+  own password (they would then be forced to change it, taking over the account).
+- No multi-factor authentication. No email delivery (setup links are handed out by administrators).
+- An attacker who knows an email can lock that account for 15 minutes by failing 5 times (standard lockout trade-off).
+- `npm audit` reports issues in the Prisma **CLI** dependency tree (`mysql2`, `deepmerge-ts`), a development tool not
+  used at runtime with PostgreSQL.
+- RFID terminals authenticate with a 192-bit device key; physical card cloning is outside the system's control.

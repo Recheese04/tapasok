@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { clientIp } from "@/lib/security/rate-limit";
 import { db } from "@/lib/database/client";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { loginSchema } from "@/lib/validation/auth";
@@ -20,7 +22,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   }
   const { email, password } = parsed.data;
 
-  const result = await attemptLogin(email, password);
+  const result = await attemptLogin(email, password, clientIp(await headers()));
   if (!result.ok) return { error: result.error };
 
   await createSession(result.userId);
@@ -28,6 +30,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     data: { actorUserId: result.userId, action: "auth.login", targetType: "user", targetId: result.userId },
   });
 
+  if (result.mustChangePassword) redirect("/change-password");
   redirect(safeNext(formData.get("next")));
 }
 

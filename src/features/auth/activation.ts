@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "@/lib/database/client";
 import { hashPassword } from "@/lib/auth/password";
+import { weakPasswordReason } from "@/lib/security/password-policy";
 
 // One-time account setup links. Only a SHA-256 hash is stored; the raw token exists in the link
 // handed to the admin once. Used for imported students (INVITED) and for password setup/recovery.
@@ -44,10 +45,13 @@ export async function lookupActivation(token: string) {
 export async function activateAccount(token: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const row = await db.activationToken.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, status: true } } },
+    include: { user: { select: { id: true, status: true, email: true } } },
   });
   const invalid = { ok: false as const, error: "This setup link is invalid or has expired. Ask an administrator for a new one." };
   if (!row || row.usedAt || row.expiresAt <= new Date() || row.user.status === "DISABLED") return invalid;
+
+  const weak = weakPasswordReason(password, null, row.user.email);
+  if (weak) return { ok: false, error: weak };
 
   const passwordHash = await hashPassword(password);
   // Claim the token atomically so two concurrent submissions cannot both succeed.
@@ -57,7 +61,7 @@ export async function activateAccount(token: string, password: string): Promise<
   await db.$transaction([
     db.user.update({
       where: { id: row.userId },
-      data: { passwordHash, status: "ACTIVE", failedLoginCount: 0, lockedUntil: null },
+      data: { passwordHash, status: "ACTIVE", failedLoginCount: 0, lockedUntil: null, mustChangePassword: false },
     }),
     db.session.deleteMany({ where: { userId: row.userId } }),
     db.auditLog.create({ data: { actorUserId: row.userId, action: "user.activate_account", targetType: "user", targetId: row.userId } }),

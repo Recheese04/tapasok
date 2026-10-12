@@ -24,8 +24,14 @@ vi.mock("@/lib/auth/dal", async (importOriginal) => {
     getCurrentUser: async () => authState.user,
     requireUser: async () => {
       if (!authState.user) throw new Error("NEXT_REDIRECT:/login");
+      if (authState.user.mustChangePassword) throw new Error("NEXT_REDIRECT:/change-password");
       return authState.user;
     },
+    requireUserForPasswordChange: async () => {
+      if (!authState.user) throw new Error("NEXT_REDIRECT:/login");
+      return authState.user;
+    },
+    getActiveUser: async () => (authState.user && !authState.user.mustChangePassword ? authState.user : null),
   };
 });
 
