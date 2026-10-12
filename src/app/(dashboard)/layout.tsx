@@ -1,6 +1,7 @@
 import { cache, Suspense } from "react";
 import { AppFrame, SidebarNav, TopbarActions } from "@/components/layout/sidebar";
 import { requireUser } from "@/lib/auth/dal";
+import { BackForwardGuard } from "@/components/layout/back-forward-guard";
 import { navItemsFor } from "@/config/navigation";
 import { userRoleLabel } from "@/features/auth/roles";
 import { unreadCount } from "@/features/notifications/service";
@@ -43,6 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       nav={<Suspense fallback={<SidebarSkeleton />}><Sidebar /></Suspense>}
       topbar={<Suspense fallback={<div className="ml-auto h-10 w-40 animate-pulse rounded-full bg-foreground/5" aria-hidden="true" />}><Topbar /></Suspense>}
     >
+      <BackForwardGuard />
       {children}
     </AppFrame>
   );

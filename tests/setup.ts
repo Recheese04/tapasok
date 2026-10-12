@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  RedirectType: { push: "push", replace: "replace" },
 }));
 
 vi.mock("next/headers", () => ({

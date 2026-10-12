@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { changePasswordAction, type SettingsState } from "@/features/settings/actions";
-import { logoutAction } from "./actions";
+import { signOutAction } from "./actions";
 
 const input = "min-h-12 w-full rounded-xl border border-border bg-white px-3.5 text-[15px] outline-none focus:border-primary focus:ring-4 focus:ring-primary/15";
 
@@ -34,9 +34,7 @@ export function ChangePasswordForm() {
           {pending ? "Saving…" : "Save and continue"}
         </button>
       </form>
-      <form action={logoutAction}>
-        <button type="submit" className="w-full rounded-xl px-4 py-2 text-sm font-medium text-muted hover:bg-primary-soft hover:text-primary">Sign out instead</button>
-      </form>
+      <button type="button" onClick={async () => { await signOutAction(); window.location.replace("/login"); }} className="w-full rounded-xl px-4 py-2 text-sm font-medium text-muted hover:bg-primary-soft hover:text-primary">Sign out instead</button>
     </div>
   );
 }

@@ -1,6 +1,11 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { LoginForm } from "@/features/auth/login-form";
 import { AuthShell } from "@/features/landing/auth-shell";
+
+// Reads the session: someone already signed in (for example after pressing Back) is sent on instead of seeing the form.
+export const instant = false;
 
 export default function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; activated?: string }> }) {
   return (
@@ -13,6 +18,8 @@ export default function LoginPage({ searchParams }: { searchParams: Promise<{ ne
 }
 
 async function WithParams({ searchParams }: { searchParams: Promise<{ next?: string; activated?: string }> }) {
+  const user = await getCurrentUser();
+  if (user) redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
   const { next, activated } = await searchParams;
   return (
     <div className="flex flex-col gap-4">

@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import { headers } from "next/headers";
 import { clientIp } from "@/lib/security/rate-limit";
 import { db } from "@/lib/database/client";
@@ -30,16 +30,29 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     data: { actorUserId: result.userId, action: "auth.login", targetType: "user", targetId: result.userId },
   });
 
-  if (result.mustChangePassword) redirect("/change-password");
-  redirect(safeNext(formData.get("next")));
+  // Replace, not push: the sign-in page must not stay in the back-button history once you are in.
+  if (result.mustChangePassword) redirect("/change-password", RedirectType.replace);
+  redirect(safeNext(formData.get("next")), RedirectType.replace);
 }
 
-export async function logoutAction() {
+async function endSession() {
   const userId = await destroySession();
   if (userId) {
     await db.auditLog.create({
       data: { actorUserId: userId, action: "auth.logout", targetType: "user", targetId: userId },
     });
   }
-  redirect("/login");
+}
+
+export async function logoutAction() {
+  await endSession();
+  redirect("/login", RedirectType.replace);
+}
+
+/**
+ * Ends the session without navigating. The caller then does a full page load to /login (window.location.replace), which
+ * also empties the browser's in-memory copy of signed-in pages, so Back cannot show them after signing out.
+ */
+export async function signOutAction() {
+  await endSession();
 }
