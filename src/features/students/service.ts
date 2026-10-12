@@ -71,7 +71,6 @@ export async function createStudent(
       data: {
         email: fields.email,
         passwordHash: cred.hash,
-        mustChangePassword: cred.initialPassword !== null,
         firstName: fields.firstName,
         lastName: fields.lastName,
         status: cred.active ? "ACTIVE" : "INVITED",

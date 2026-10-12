@@ -61,7 +61,7 @@ export async function activateAccount(token: string, password: string): Promise<
   await db.$transaction([
     db.user.update({
       where: { id: row.userId },
-      data: { passwordHash, status: "ACTIVE", failedLoginCount: 0, lockedUntil: null, mustChangePassword: false },
+      data: { passwordHash, status: "ACTIVE", failedLoginCount: 0, lockedUntil: null },
     }),
     db.session.deleteMany({ where: { userId: row.userId } }),
     db.auditLog.create({ data: { actorUserId: row.userId, action: "user.activate_account", targetType: "user", targetId: row.userId } }),

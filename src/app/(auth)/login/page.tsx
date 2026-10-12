@@ -19,7 +19,7 @@ export default function LoginPage({ searchParams }: { searchParams: Promise<{ ne
 
 async function WithParams({ searchParams }: { searchParams: Promise<{ next?: string; activated?: string }> }) {
   const user = await getCurrentUser();
-  if (user) redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
+  if (user) redirect("/dashboard");
   const { next, activated } = await searchParams;
   return (
     <div className="flex flex-col gap-4">

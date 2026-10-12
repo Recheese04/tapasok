@@ -31,7 +31,6 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   });
 
   // Replace, not push: the sign-in page must not stay in the back-button history once you are in.
-  if (result.mustChangePassword) redirect("/change-password", RedirectType.replace);
   redirect(safeNext(formData.get("next")), RedirectType.replace);
 }
 

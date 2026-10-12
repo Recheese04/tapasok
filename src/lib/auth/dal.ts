@@ -13,8 +13,6 @@ export type AuthUser = {
   firstName: string;
   lastName: string;
   systemRole: SystemRole;
-  /** Still on the shared default password: may only change it (and sign out) until they choose their own. */
-  mustChangePassword: boolean;
   memberships: {
     organizationId: string;
     organizationName: string;
@@ -51,7 +49,6 @@ export async function loadUserByToken(token: string): Promise<AuthUser | null> {
     firstName: user.firstName,
     lastName: user.lastName,
     systemRole: user.systemRole,
-    mustChangePassword: user.mustChangePassword,
     memberships: user.memberships.map((m) => ({
       organizationId: m.organizationId,
       organizationName: m.organization.name,
@@ -72,20 +69,5 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
 export async function requireUser(): Promise<AuthUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  // Accounts still on the shared default password can do nothing else until they choose their own.
-  if (user.mustChangePassword) redirect("/change-password");
   return user;
-}
-
-/** For the change-password page and action only: signed in, even if a password change is still required. */
-export async function requireUserForPasswordChange(): Promise<AuthUser> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  return user;
-}
-
-/** For route handlers (downloads, exports): the signed-in user, or null when signed out or a password change is pending. */
-export async function getActiveUser(): Promise<AuthUser | null> {
-  const user = await getCurrentUser();
-  return user && !user.mustChangePassword ? user : null;
 }

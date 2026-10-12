@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { db } from "@/lib/database/client";
-import { getActiveUser } from "@/lib/auth/dal";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { canOrg, canSystem } from "@/lib/permissions/policy";
 import { readBytes } from "@/features/documents/storage";
 
 // A student's photo is visible to the student, to system admins, and to officers who may see the roster
 // of an organization the student actively belongs to.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getActiveUser();
+  const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) return new Response("Not found", { status: 404 });

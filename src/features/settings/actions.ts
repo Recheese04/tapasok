@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { db } from "@/lib/database/client";
-import { requireUser, requireUserForPasswordChange } from "@/lib/auth/dal";
+import { requireUser } from "@/lib/auth/dal";
 import { weakPasswordReason } from "@/lib/security/password-policy";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { currentSessionHash } from "@/lib/auth/session";
@@ -25,7 +25,7 @@ export async function updateProfileAction(_prev: SettingsState, fd: FormData): P
 }
 
 export async function changePasswordAction(_prev: SettingsState, fd: FormData): Promise<SettingsState> {
-  const user = await requireUserForPasswordChange();
+  const user = await requireUser();
   const parsed = z.object({ current: z.string().min(1, "Enter your current password.").max(200), password: passwordSchema, confirm: z.string() })
     .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "Passwords do not match." })
     .safeParse({ current: fd.get("current"), password: fd.get("password"), confirm: fd.get("confirm") });
@@ -38,7 +38,7 @@ export async function changePasswordAction(_prev: SettingsState, fd: FormData): 
 
   const keep = await currentSessionHash();
   await db.$transaction([
-    db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password), mustChangePassword: false } }),
+    db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.password) } }),
     // Sign out every other device; this one stays signed in.
     db.session.deleteMany({ where: { userId: user.id, ...(keep ? { tokenHash: { not: keep } } : {}) } }),
     db.auditLog.create({ data: { actorUserId: user.id, action: "auth.password_change", targetType: "user", targetId: user.id } }),

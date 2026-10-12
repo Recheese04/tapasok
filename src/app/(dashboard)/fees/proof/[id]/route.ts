@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { db } from "@/lib/database/client";
-import { getActiveUser } from "@/lib/auth/dal";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { canOrg } from "@/lib/permissions/policy";
 import { readBytes } from "@/features/documents/storage";
 
 // Payment evidence is restricted to the student who submitted it and the organization's treasurer.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getActiveUser();
+  const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
   const { id } = await params;
   const p = z.uuid().safeParse(id).success ? await db.payment.findUnique({ where: { id }, select: { proofKey: true, proofMime: true, submittedById: true, studentFee: { select: { organizationId: true } } } }) : null;

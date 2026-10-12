@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getActiveUser } from "@/lib/auth/dal";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { getBarangays, getCities, getProvinces, getRegions, isPsgcCode, PsgcError } from "@/lib/psgc";
 
 // Authenticated read-only proxy for PSGC reference data (no personal data is involved).
 export async function GET(request: Request, { params }: { params: Promise<{ kind: string }> }) {
-  if (!(await getActiveUser())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await getCurrentUser())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { kind } = await params;
   const q = new URL(request.url).searchParams;

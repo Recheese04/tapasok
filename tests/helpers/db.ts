@@ -58,7 +58,6 @@ export async function toAuthUser(userId: string): Promise<AuthUser> {
     firstName: user.firstName,
     lastName: user.lastName,
     systemRole: user.systemRole,
-    mustChangePassword: user.mustChangePassword,
     memberships: user.memberships.map((m) => ({
       organizationId: m.organizationId,
       organizationName: m.organization.name,

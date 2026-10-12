@@ -18,7 +18,7 @@ export const NETWORK_LIMIT_ERROR = "Too many failed sign-ins from this network. 
 const IP_FAILURES = 30;
 const IP_WINDOW_MS = 15 * 60_000;
 
-export type LoginResult = { ok: true; userId: string; systemRole: "USER" | "SYSTEM_ADMIN"; mustChangePassword: boolean } | { ok: false; error: string };
+export type LoginResult = { ok: true; userId: string; systemRole: "USER" | "SYSTEM_ADMIN"} | { ok: false; error: string };
 
 export async function attemptLogin(email: string, password: string, ip = "unknown"): Promise<LoginResult> {
   const ipKey = `login:ip:${ip}`;
@@ -50,5 +50,5 @@ export async function attemptLogin(email: string, password: string, ip = "unknow
   }
 
   await db.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() } });
-  return { ok: true, userId: user.id, systemRole: user.systemRole, mustChangePassword: user.mustChangePassword };
+  return { ok: true, userId: user.id, systemRole: user.systemRole };
 }

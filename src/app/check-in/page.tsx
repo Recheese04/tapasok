@@ -33,7 +33,6 @@ async function Body({ searchParams }: { searchParams: Promise<{ c?: string }> })
   const { c } = await searchParams;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/check-in${c ? `?c=${encodeURIComponent(c)}` : ""}`)}`);
-  if (user.mustChangePassword) redirect("/change-password");
   if (!c) return <Problem title="Scan a QR code to check in" text="Check-in starts from the QR code shown by the organizers. Open Scan Attendance QR in Tapasok, or point your phone camera at the code." />;
 
   const qr = verifySessionQr(c);

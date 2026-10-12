@@ -1,13 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { loginAction } from "@/features/auth/actions";
 import { attemptLogin } from "@/features/auth/login";
 import { activateAccount, createSetupLink } from "@/features/auth/activation";
 import { changePasswordAction } from "@/features/settings/actions";
 import { createAccountAction } from "@/features/users/actions";
 import { POST as mobileLogin } from "@/app/api/mobile/login/route";
-import { GET as mobileMe } from "@/app/api/mobile/me/route";
-import { GET as downloadDoc } from "@/app/(dashboard)/documents/[id]/download/route";
-import { hashToken } from "@/lib/auth/session";
 import { weakPasswordReason } from "@/lib/security/password-policy";
 import nextConfig from "../next.config";
 import { db, form, signInAs, TEST_PASSWORD } from "./helpers/db";
@@ -50,7 +46,7 @@ describe("sign-in abuse protection", () => {
   });
 });
 
-describe("shared starting password must be replaced before anything else", () => {
+describe("password rules", () => {
   async function defaultAccount() {
     process.env.DEFAULT_ACCOUNT_PASSWORD = "password";
     const w = await makeWorld();
@@ -60,32 +56,7 @@ describe("shared starting password must be replaced before anything else", () =>
     return { w, u };
   }
 
-  it("accounts created with it are flagged, are sent to /change-password at sign-in, and the mobile app refuses them", async () => {
-    const { u } = await defaultAccount();
-    expect(u.mustChangePassword).toBe(true);
-    await expect(loginAction({}, form({ email: u.email, password: "password" }))).rejects.toThrow("NEXT_REDIRECT:/change-password");
-    const m = await mobile(u.email, "password");
-    expect(m.status).toBe(403);
-    expect((await m.json()).error.code).toBe("PASSWORD_CHANGE_REQUIRED");
-    expect(await db.session.count({ where: { userId: u.id, userAgent: { startsWith: "mobile:" } } })).toBe(0);
-  });
-
-  it("while flagged, every page and file is off-limits; an existing mobile token stops working too", async () => {
-    const { w, u } = await defaultAccount();
-    await signInAs(u.id);
-    const { requireUser } = await import("@/lib/auth/dal");
-    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT:/change-password");
-    await db.organizationMember.create({ data: { userId: u.id, organizationId: w.orgA.id, role: "MEMBER" } });
-    const doc = await db.document.create({ data: { organizationId: w.orgA.id, title: "Minutes", fileName: "m.pdf", mimeType: "application/pdf", sizeBytes: 1, storageKey: "00000000-0000-0000-0000-00000000000a" } });
-    await signInAs(u.id);
-    expect((await downloadDoc(new Request("http://x"), { params: Promise.resolve({ id: doc.id }) })).status).toBe(401);
-    const token = "t".repeat(43);
-    await db.session.create({ data: { userId: u.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 3_600_000) } });
-    const me = await mobileMe(new Request("http://x/api/mobile/me", { headers: { authorization: `Bearer ${token}` } }), { params: Promise.resolve({}) } as never);
-    expect(me.status).toBe(403);
-  });
-
-  it("changing it clears the flag; weak choices are refused", async () => {
+  it("changing a password refuses weak choices", async () => {
     const { u } = await defaultAccount();
     await signInAs(u.id);
     const change = (password: string, current = "password") => changePasswordAction({}, form({ current, password, confirm: password }));
@@ -95,8 +66,6 @@ describe("shared starting password must be replaced before anything else", () =>
     expect((await change("short")).fieldErrors?.password).toMatch(/10 characters/);
     expect((await change("Green-Mango-Tide-48", "wrong")).fieldErrors?.current).toMatch(/incorrect/);
     expect((await change("Green-Mango-Tide-48")).success).toBeDefined();
-    const after = await db.user.findUniqueOrThrow({ where: { id: u.id } });
-    expect(after.mustChangePassword).toBe(false);
     expect((await attemptLogin(u.email, "Green-Mango-Tide-48", "192.0.2.3")).ok).toBe(true);
     expect((await attemptLogin(u.email, "password", "192.0.2.3")).ok).toBe(false);
   });

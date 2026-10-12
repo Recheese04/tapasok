@@ -1,10 +1,10 @@
-import { getActiveUser } from "@/lib/auth/dal";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { toCsv } from "@/lib/csv";
 import { exportRows } from "@/features/reports/queries";
 import { db } from "@/lib/database/client";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ type: string }> }) {
-  const user = await getActiveUser();
+  const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const { type } = await params;

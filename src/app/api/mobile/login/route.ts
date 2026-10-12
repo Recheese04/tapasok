@@ -14,8 +14,6 @@ export async function POST(request: Request) {
   if (!result.ok) return fail(result.error.startsWith("Too many failed sign-ins") ? 429 : 401, "INVALID_CREDENTIALS", result.error);
   if (result.systemRole === "SYSTEM_ADMIN") return fail(403, "ADMIN_WEB_ONLY", "System administration is available on the Tapasok web app. Please use the web app.");
 
-  if (result.mustChangePassword) return fail(403, "PASSWORD_CHANGE_REQUIRED", "Choose your own password on the Tapasok website first, then sign in here.");
-
   const { token, expiresAt } = await issueMobileToken(result.userId, request);
   await db.auditLog.create({ data: { actorUserId: result.userId, action: "auth.login_mobile", targetType: "user", targetId: result.userId } });
   return json({ token, expiresAt: expiresAt.toISOString() });
