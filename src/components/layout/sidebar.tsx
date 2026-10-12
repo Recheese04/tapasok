@@ -81,8 +81,9 @@ export function SidebarNav({ items, unread }: { items: NavItem[]; unread: number
   // Longest matching href wins, and when two sections link to the same page only the first one is highlighted.
   const activeIndex = items
     .map((i, idx) => ({ i, idx }))
-    .filter(({ i }) => pathname === i.href || pathname.startsWith(`${i.href}/`))
-    .sort((a, b) => b.i.href.length - a.i.href.length || a.idx - b.idx)[0]?.idx;
+    .map(({ i, idx }) => ({ idx, len: Math.max(...[i.href, ...(i.also ?? [])].map((h) => (pathname === h || pathname.startsWith(`${h}/`) ? h.length : -1))) }))
+    .filter(({ len }) => len >= 0)
+    .sort((a, b) => b.len - a.len || a.idx - b.idx)[0]?.idx;
 
   const groups: { section: NavItem["section"]; entries: { item: NavItem; idx: number }[] }[] = [];
   items.forEach((item, idx) => {

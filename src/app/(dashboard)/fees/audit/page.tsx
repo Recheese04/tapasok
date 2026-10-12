@@ -14,7 +14,7 @@ const pretty = (a: string) => a.replace(/_/g, " ").replace(".", " · ");
 
 function Diff({ before, after }: { before: unknown; after: unknown }) {
   const b = (before ?? {}) as Record<string, unknown>, a = (after ?? {}) as Record<string, unknown>;
-  const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])];
+  const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter((k) => !(b[k] == null && a[k] == null));
   if (!keys.length) return null;
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">

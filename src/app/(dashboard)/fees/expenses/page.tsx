@@ -14,7 +14,7 @@ import { orgFinance } from "@/lib/mobile/finance";
 export const instant = false;
 
 const STATUS: Record<string, ["green" | "amber" | "red" | "gray" | "purple", string]> = {
-  PENDING: ["amber", "Pending approval"], APPROVED: ["green", "Approved"], REJECTED: ["red", "Rejected"], CANCELLED: ["gray", "Cancelled"], REVERSED: ["gray", "Reversed"],
+  PENDING: ["amber", "Pending"], APPROVED: ["green", "Approved"], REJECTED: ["red", "Rejected"], CANCELLED: ["gray", "Cancelled"], REVERSED: ["gray", "Reversed"],
 };
 const STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "REVERSED"] as const;
 
@@ -54,10 +54,10 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
       <OrgPicker orgId={orgId} options={viewIds.map((id) => ({ id, name: names.get(id) ?? id }))} />
 
       <section aria-label="Balance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Available balance" value={formatPeso(sum.available)} hint="Collected + other funds − expenses" tone={Number(sum.available) < 0 ? "red" : "purple"} icon={<Icon name="wallet" />} />
-        <StatCard label="Collected (confirmed fees)" value={formatPeso(sum.collected)} hint={Number(sum.otherIncome) > 0 ? `+ ${formatPeso(sum.otherIncome)} other funds` : "Pending payments not included"} tone="green" icon={<Icon name="check" />} />
-        <StatCard label="Approved expenses" value={formatPeso(sum.expenses)} hint={sum.pendingExpenseCount ? `${sum.pendingExpenseCount} pending · ${formatPeso(sum.pendingExpenses)}` : "No pending expenses"} tone="red" icon={<Icon name="chart" />} />
-        <StatCard label="Outstanding member fees" value={formatPeso(fin.totals.outstanding)} hint="Owed, not yet collected" tone="amber" icon={<Icon name="alert" />} />
+        <StatCard label="Available balance" value={formatPeso(sum.available)} hint="Money held now" tone={Number(sum.available) < 0 ? "red" : "purple"} icon={<Icon name="wallet" />} />
+        <StatCard label="Collected fees" value={formatPeso(sum.collected)} hint={Number(sum.otherIncome) > 0 ? `+ ${formatPeso(sum.otherIncome)} other funds` : "Confirmed only"} tone="green" icon={<Icon name="check" />} />
+        <StatCard label="Expenses" value={formatPeso(sum.expenses)} hint={sum.pendingExpenseCount ? `${sum.pendingExpenseCount} pending · ${formatPeso(sum.pendingExpenses)}` : "No pending expenses"} tone="red" icon={<Icon name="chart" />} />
+        <StatCard label="Outstanding fees" value={formatPeso(fin.totals.outstanding)} hint="Owed by members" tone="amber" icon={<Icon name="alert" />} />
       </section>
 
       {toDecide.length > 0 && (

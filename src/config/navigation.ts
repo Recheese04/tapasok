@@ -8,7 +8,8 @@ import {
 
 export type NavSection = "general" | "admin" | "manage" | "account" | "other";
 
-export type NavItem = { label: string; href: string; section: NavSection };
+/** `also`: other path prefixes that belong to this item (e.g. the finance sub-pages under Fees & Payments). */
+export type NavItem = { label: string; href: string; section: NavSection; also?: string[] };
 
 type Rule = NavItem & { visible: (u: PolicyUser) => boolean };
 
@@ -46,7 +47,7 @@ const RULES: Rule[] = [
   { label: "Manage Obligations", href: "/obligations/manage", section: "manage", visible: orgPerm("obligations.view_org") },
   { label: "Manage Consequences", href: "/consequences/manage", section: "manage", visible: orgPerm("consequences.view_org") },
   { label: "Members & Organizations", href: "/organizations/manage", section: "manage", visible: orgPerm("members.basic") },
-  { label: "Fees & Payments", href: "/fees/manage", section: "manage", visible: orgPerm("fees.view_org") },
+  { label: "Fees & Payments", href: "/fees/manage", also: ["/fees/expenses", "/fees/report", "/fees/audit"], section: "manage", visible: orgPerm("fees.view_org") },
 
   { label: "Events", href: "/events", section: "account", visible: anyOrg },
   { label: "Scan Attendance QR", href: "/attendance/scan", section: "account", visible: anyOrg },
@@ -74,7 +75,7 @@ export function navItemsFor(user: PolicyUser): NavItem[] {
   for (const r of RULES) {
     if (!r.visible(user) || seen.has(r.href)) continue;
     seen.add(r.href);
-    out.push({ label: r.label, href: r.href, section: r.section });
+    out.push({ label: r.label, href: r.href, section: r.section, ...(r.also ? { also: r.also } : {}) });
   }
   return out;
 }

@@ -61,3 +61,15 @@ document downloads, exports and administrative changes are written to `audit_log
 - `npm audit` reports issues in the Prisma **CLI** dependency tree (`mysql2`, `deepmerge-ts`), a development tool not
   used at runtime with PostgreSQL.
 - RFID terminals authenticate with a 192-bit device key; physical card cloning is outside the system's control.
+
+## Organization funds (expenses and other money received)
+
+- Available balance = confirmed, non-voided fee payments + approved other funds − approved expenses. It is always
+  computed from records; there is no stored balance to edit.
+- Independent approval: the Treasurer records, the President approves / rejects / reverses. A database constraint
+  refuses a decision by the person who recorded the record. Auditor and Adviser are read-only.
+- Approvals take a per-organization lock and a conditional status update, so a record counts exactly once and two
+  concurrent approvals cannot overdraw the balance. Double-submitted forms are de-duplicated by a request id.
+- Records are never deleted: pending ones can be cancelled, approved ones reversed, both with a reason.
+- `financial_audit_entries` is append-only at the database level (UPDATE and DELETE are rejected by triggers) and
+  records fees, assessments, payments, verifications, voids, adjustments, expenses, approvals, reversals and report exports.
