@@ -12,7 +12,7 @@ import { authed, fail } from "./api";
 export const MOBILE_CAPABILITIES = [
   "members.basic", "members.roster", "joinrequests.review",
   "events.manage", "attendance.view_org", "announcements.manage", "documents.manage",
-  "fees.view_org", "fees.manage", "reports.finance", "evaluations.results", "evaluations.manage", "obligations.view_org",
+  "fees.view_org", "fees.manage", "reports.finance", "expenses.record", "expenses.approve", "evaluations.results", "evaluations.manage", "obligations.view_org",
 ] as const satisfies readonly OrgPermission[];
 
 export function capabilitiesIn(user: AuthUser, organizationId: string) {

@@ -36,6 +36,9 @@ export function OfficerSection({ overview }: { overview: OrgOverview }) {
       {c["fees.manage"] && (f?.pendingCount ?? 0) > 0 ? (
         <Notice icon="time" tone="warning" title={`${f!.pendingCount} payment${f!.pendingCount === 1 ? "" : "s"} to verify`} text={`${peso(f!.pendingVerification)} waiting for your confirmation`} onPress={() => router.push({ pathname: "/manage/finance", params: { tab: "pending" } })} />
       ) : null}
+      {c["expenses.approve"] && (f?.pendingExpenseCount ?? 0) > 0 ? (
+        <Notice icon="receipt" tone="danger" title={`${f!.pendingExpenseCount} expense${f!.pendingExpenseCount === 1 ? "" : "s"} to approve`} text={`${peso(f!.pendingExpenses)} waiting for your decision`} onPress={() => router.push({ pathname: "/manage/expenses", params: { filter: "PENDING" } })} />
+      ) : null}
       {(overview.members?.pendingJoinRequests ?? 0) > 0 ? (
         <Notice icon="person-add" tone="info" title={`${overview.members!.pendingJoinRequests} join request${overview.members!.pendingJoinRequests === 1 ? "" : "s"}`} text="Review them on the Tapasok website" />
       ) : null}
@@ -124,8 +127,8 @@ function FinanceHero({ overview }: { overview: OrgOverview }) {
         { label: "Outstanding", value: Number(f.outstanding), display: peso(f.outstanding), tone: "danger" },
       ]} />
       <View style={s.heroFoot}>
-        <HeroMetric label="Members with balance" value={String(f.membersWithBalance)} />
-        <HeroMetric label="Members assessed" value={String(f.membersAssessed)} />
+        <HeroMetric label="Available balance" value={peso(f.available)} />
+        <HeroMetric label="Approved expenses" value={peso(f.expenses)} />
       </View>
     </Card>
   );
@@ -208,17 +211,20 @@ function actionsFor(role: Role, o: OrgOverview): Action[] {
     all.push({ key: "reports", label: "Financial records", icon: "bar-chart", tone: "accent", href: "/manage/finance" });
     all.push({ key: "balances", label: "Balances", icon: "list", tone: "danger", href: { pathname: "/manage/finance", params: { tab: "owing" } } });
   }
+  if (c["expenses.record"]) all.push({ key: "expense", label: "Record expense", icon: "receipt", tone: "danger", href: { pathname: "/manage/expenses", params: { new: "1" } } });
+  if (c["expenses.approve"]) all.push({ key: "approveExp", label: "Approve expenses", icon: "checkmark-done", tone: "danger", href: { pathname: "/manage/expenses", params: { filter: "PENDING" } } });
+  else if (c["fees.view_org"] && !c["expenses.record"]) all.push({ key: "spending", label: "Expenses", icon: "receipt", tone: "danger", href: "/manage/expenses" });
   if (c["announcements.manage"]) all.push({ key: "ann", label: "New announcement", icon: "megaphone", tone: "teal", href: { pathname: "/manage/announcements", params: { new: "1" } } });
   if (c["events.manage"]) all.push({ key: "event", label: "New event", icon: "add-circle", tone: "violet", href: { pathname: "/manage/events", params: { new: "1" } } });
   if (c["events.manage"]) all.push({ key: "events", label: "Manage events", icon: "calendar", tone: "primary", href: "/manage/events" });
   if (c["documents.manage"]) all.push({ key: "docs", label: "Documents", icon: "folder-open", tone: "success", href: "/manage/documents" });
   if (c["members.basic"]) all.push({ key: "members", label: "Members", icon: "people", tone: "info", href: "/manage/members" });
   const order: Record<Role, string[]> = {
-    PRESIDENT: ["event", "ann", "verify", "members"],
-    TREASURER: ["verify", "cash", "members", "reports"],
-    AUDITOR: ["reports", "balances", "members"],
+    PRESIDENT: ["approveExp", "event", "ann", "verify"],
+    TREASURER: ["verify", "expense", "cash", "reports"],
+    AUDITOR: ["reports", "spending", "balances", "members"],
     SECRETARY: ["ann", "docs", "event", "members"],
-    ADVISER: ["reports", "members", "balances"],
+    ADVISER: ["reports", "spending", "members", "balances"],
     OFFICER: ["event", "events", "members"],
     MEMBER: [],
   };

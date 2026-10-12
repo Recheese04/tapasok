@@ -49,6 +49,7 @@ function Gate() {
         <Stack.Screen name="announcements" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="manage/finance" />
+        <Stack.Screen name="manage/expenses" />
         <Stack.Screen name="manage/announcements" />
         <Stack.Screen name="manage/events" />
         <Stack.Screen name="manage/members" />

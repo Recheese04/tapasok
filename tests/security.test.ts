@@ -90,7 +90,9 @@ describe("password rules", () => {
 describe("security headers", () => {
   it("sends CSP, anti-framing, HSTS, nosniff and a restrictive permissions policy on every route", async () => {
     const rules = await nextConfig.headers!();
-    const all = rules.find((r) => r.source === "/:path*")!.headers;
+    const all = rules.find((r) => r.source.startsWith("/((?!"))!.headers;
+    const file = rules.find((r) => r.source === "/fees/proof/:id")!.headers;
+    expect(file.find((x) => x.key === "Content-Security-Policy")!.value).toMatch(/^sandbox/);
     const h = Object.fromEntries(all.map((x) => [x.key, x.value]));
     expect(h["Content-Security-Policy"]).toMatch(/frame-ancestors 'none'/);
     expect(h["Content-Security-Policy"]).toMatch(/object-src 'none'/);

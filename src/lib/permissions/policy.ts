@@ -45,6 +45,11 @@ export const ORG_POLICY = {
   "consequences.waive": ["ADVISER"],
   "evaluations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "fees.manage": ["PRESIDENT", "TREASURER"], // create fees, assess, record cash, verify digital payments, adjust, void
+  // Organization funds (expenses and other money received). Independent approval: the Treasurer records, the President
+  // approves, rejects or reverses, and nobody decides on a record they recorded themselves (also a database constraint).
+  // Viewing uses fees.view_org, so the Auditor and Adviser can read everything but change nothing.
+  "expenses.record": ["TREASURER"],
+  "expenses.approve": ["PRESIDENT"],
   // Reports
   "reports.attendance": ["PRESIDENT", "SECRETARY", "OFFICER", "ADVISER"],
   "reports.consequences": ["PRESIDENT", "ADVISER"],

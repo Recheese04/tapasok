@@ -34,6 +34,7 @@ export function toolsFor(o: OrgOverview): Tool[] {
   const role = primaryRole(o.roles);
   const t: Tool[] = [];
   if (c["fees.view_org"]) t.push({ key: "finance", label: "Finance", sub: c["fees.manage"] ? "Verify payments, record cash, balances" : "Read-only summaries and records", icon: "wallet", tone: "accent", route: "/manage/finance", badge: c["fees.manage"] ? (o.finance?.pendingCount ?? 0) : 0 });
+  if (c["fees.view_org"]) t.push({ key: "expenses", label: "Expenses & funds", sub: c["expenses.record"] ? "Record spending, see the available balance" : c["expenses.approve"] ? "Approve spending, see the available balance" : "Read-only spending and balance", icon: "receipt", tone: "danger", route: "/manage/expenses", badge: c["expenses.approve"] ? (o.finance?.pendingExpenseCount ?? 0) : 0 });
   if (c["events.manage"]) t.push({ key: "events", label: "Manage events", sub: "Create, publish and open check-in", icon: "calendar", tone: "violet", route: "/manage/events", badge: o.events.drafts ?? 0 });
   if (c["announcements.manage"]) t.push({ key: "announcements", label: "Announcements", sub: "Post updates to members", icon: "megaphone", tone: "teal", route: "/manage/announcements" });
   if (c["members.basic"]) t.push({ key: "members", label: "Members", sub: `${o.members?.count ?? 0} in this organization`, icon: "people", tone: "info", route: "/manage/members", badge: o.members?.pendingJoinRequests ?? 0 });

@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import type { MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
+import type { OrgExpenses, MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
 
 const BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 const TOKEN_KEY = "tapasok_token";
@@ -81,5 +81,10 @@ export const api = {
   setSessionActive: (orgId: string, eventId: string, sessionId: string, active: boolean) => request<{ ok: true }>("POST", `/org/${orgId}/events/${eventId}/sessions/${sessionId}`, { active }),
   orgMembers: (orgId: string) => get<{ members: OrgMember[] }>(`/org/${orgId}/members`),
   orgMember: (orgId: string, userId: string) => get<MemberDetail>(`/org/${orgId}/members/${userId}`),
+  orgExpenses: (orgId: string, status?: "PENDING" | "APPROVED") => get<OrgExpenses>(`/org/${orgId}/expenses${status ? `?status=${status}` : ""}`),
+  recordExpense: (orgId: string, e: { type: "EXPENSE" | "INCOME"; title: string; amount: string; category: string; occurredOn: string; purpose: string; notes?: string; requestId: string }) =>
+    request<{ ok: true; id: string; duplicate: boolean }>("POST", `/org/${orgId}/expenses`, e),
+  decideExpense: (orgId: string, id: string, action: "approve" | "reject" | "cancel" | "reverse", reason?: string) =>
+    request<{ ok: true; available?: string }>("POST", `/org/${orgId}/expenses/${id}`, { action, reason }),
   orgDocuments: (orgId: string) => get<{ canManage: boolean; documents: OrgDocument[] }>(`/org/${orgId}/documents`),
 };

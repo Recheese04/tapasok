@@ -34,6 +34,8 @@ const EXPECT: Record<OrgPermission, readonly (typeof ROLES)[number][]> = {
   "consequences.waive": ["ADVISER"],
   "evaluations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "fees.manage": ["PRESIDENT", "TREASURER"],
+  "expenses.record": ["TREASURER"],
+  "expenses.approve": ["PRESIDENT"],
   "obligations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "reports.attendance": ["PRESIDENT", "SECRETARY", "OFFICER", "ADVISER"],
   "reports.consequences": ["PRESIDENT", "ADVISER"],

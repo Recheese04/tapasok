@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/database/client";
 import { requireUser } from "@/lib/auth/dal";
+import { finAudit } from "@/features/finance/audit";
 import { assertOrgPermission } from "@/lib/permissions";
 import { checkUpload, saveBytes } from "@/features/documents/storage";
 import { assessMember, assignFeeToMembers, createFeeType, adjustLedger, parseAmount, recordPayment, submitDigitalPayment, verifyPayment, voidPayment } from "./service";
@@ -169,11 +170,17 @@ export async function updateFeeTypeAction(_prev: FeeState, fd: FormData): Promis
   const due = (fd.get("dueDate") ?? "").toString();
   const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(due) ? new Date(`${due}T23:59:59+08:00`) : null;
   const description = (fd.get("description") ?? "").toString().trim().slice(0, 300) || null;
+  const old = await db.feeType.findUniqueOrThrow({ where: { id: id.data }, select: { name: true, amount: true, dueDate: true, description: true } });
   try {
-    await db.$transaction([
-      db.feeType.update({ where: { id: id.data }, data: { name: name.data, amount, dueDate, description } }),
-      db.auditLog.create({ data: { actorUserId: actor.id, action: "fee_type.update", targetType: "fee_type", targetId: id.data } }),
-    ]);
+    await db.$transaction(async (tx) => {
+      await tx.feeType.update({ where: { id: id.data }, data: { name: name.data, amount, dueDate, description } });
+      await tx.auditLog.create({ data: { actorUserId: actor.id, action: "fee_type.update", targetType: "fee_type", targetId: id.data } });
+      await finAudit(tx, {
+        organizationId: fee.organizationId, action: "fee_type.update", entityType: "fee_type", entityId: id.data, amount, actorId: actor.id,
+        before: { name: old.name, amount: old.amount.toFixed(2), dueDate: old.dueDate?.toISOString() ?? null, description: old.description },
+        after: { name: name.data, amount: amount.toFixed(2), dueDate: dueDate?.toISOString() ?? null, description },
+      });
+    });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { error: "A fee with this name already exists." };
     throw e;
@@ -189,10 +196,11 @@ export async function setFeeTypeActiveAction(fd: FormData) {
   if (!fee) return;
   const actor = await assertOrgPermission("fees.manage", fee.organizationId);
   const active = fd.get("active") === "true";
-  await db.$transaction([
-    db.feeType.update({ where: { id: id.data }, data: { active } }),
-    db.auditLog.create({ data: { actorUserId: actor.id, action: active ? "fee_type.activate" : "fee_type.deactivate", targetType: "fee_type", targetId: id.data } }),
-  ]);
+  await db.$transaction(async (tx) => {
+    await tx.feeType.update({ where: { id: id.data }, data: { active } });
+    await tx.auditLog.create({ data: { actorUserId: actor.id, action: active ? "fee_type.activate" : "fee_type.deactivate", targetType: "fee_type", targetId: id.data } });
+    await finAudit(tx, { organizationId: fee.organizationId, action: active ? "fee_type.activate" : "fee_type.deactivate", entityType: "fee_type", entityId: id.data, actorId: actor.id, before: { active: !active }, after: { active } });
+  });
 }
 
 /** A fee that was never assessed to anyone can be deleted outright; otherwise it is deactivated to keep the ledger. */
@@ -203,8 +211,9 @@ export async function deleteFeeTypeAction(fd: FormData) {
   if (!fee) return;
   const actor = await assertOrgPermission("fees.manage", fee.organizationId);
   if (fee._count.assignments > 0) return;
-  await db.$transaction([
-    db.feeType.delete({ where: { id: id.data } }),
-    db.auditLog.create({ data: { actorUserId: actor.id, action: "fee_type.delete", targetType: "fee_type", targetId: id.data } }),
-  ]);
+  await db.$transaction(async (tx) => {
+    const gone = await tx.feeType.delete({ where: { id: id.data } });
+    await tx.auditLog.create({ data: { actorUserId: actor.id, action: "fee_type.delete", targetType: "fee_type", targetId: id.data } });
+    await finAudit(tx, { organizationId: fee.organizationId, action: "fee_type.delete", entityType: "fee_type", entityId: id.data, amount: gone.amount, actorId: actor.id, before: { name: gone.name, amount: gone.amount.toFixed(2) }, reason: "Never assessed to anyone" });
+  });
 }

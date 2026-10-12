@@ -10,6 +10,8 @@ import { formatDate, formatDateTime, formatPeso } from "@/lib/format";
 import { assignFeeAction, deleteFeeTypeAction, setFeeTypeActiveAction, verifyPaymentAction, voidPaymentAction } from "@/features/fees/actions";
 import { ledger } from "@/features/fees/ledger";
 import { AdjustForm, AssessMemberForm, FeeTypeEdit, FeeTypeForm, PaymentForm } from "@/features/fees/forms";
+import { FinanceNav } from "@/features/finance/finance-nav";
+import { fundSummary } from "@/features/finance/funds";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
 // request, so it cannot be prerendered or shared. The layout and loading.tsx stream the frame and a skeleton while it
@@ -56,13 +58,15 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
     ]);
     const all = await db.studentFee.findMany({ where, include: { adjustments: { select: { amount: true } }, payments: { select: { amount: true, status: true, voidedAt: true } } } });
     const totals = all.map(ledger).reduce((t, l) => ({ due: t.due.add(l.effectiveDue), paid: t.paid.add(l.paid) }), { due: new Prisma.Decimal(0), paid: new Prisma.Decimal(0) });
-    return { feeTypes, events, total, rows, pendingPayments, totals };
+    const funds = await fundSummary(orgId);
+    return { feeTypes, events, total, rows, pendingPayments, totals, funds };
   })() : null;
 
   return (
     <Page>
       <PageHeader title="Fees & Payments" subtitle="The organization's fees, collections and ledger. Your own fees are under My Fees & Payments." actions={<>{manage && org && orgId && (<ModalButton label="+ Create fee" variant="primary" title="Create fee" description="A fee is assessed to members afterwards, from the Assessments list." size="md"><FeeTypeForm organizationId={orgId} events={org.events} /></ModalButton>)}<ButtonLink href="/reports" variant="secondary">View reports</ButtonLink></>} />
 
+      {orgId ? <FinanceNav current="/fees/manage" orgId={orgId} /> : null}
       {org && orgId && (
         <section aria-labelledby="org-fees" className="flex flex-col gap-4">
           <h2 id="org-fees" className="font-medium">{orgNames.get(orgId)} — ledger</h2>
@@ -72,10 +76,11 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
               <button type="submit" className={secondaryButton}>Switch</button>
             </form>
           )}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card title="Total assessed"><p className="text-2xl font-semibold">{D(org.totals.due)}</p></Card>
-            <Card title="Collected (verified)"><p className="text-2xl font-semibold">{D(org.totals.paid)}</p></Card>
-            <Card title="Outstanding"><p className="text-2xl font-semibold">{D(org.totals.due.sub(org.totals.paid))}</p></Card>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Card title="Collected (verified)"><p className="text-2xl font-semibold">{D(org.totals.paid)}</p><p className="text-xs text-muted">of {D(org.totals.due)} assessed</p></Card>
+            <Card title="Outstanding member fees"><p className="text-2xl font-semibold">{D(org.totals.due.sub(org.totals.paid))}</p><p className="text-xs text-muted">Owed, not yet collected</p></Card>
+            <Card title="Approved expenses"><p className="text-2xl font-semibold text-danger">{formatPeso(org.funds.expenses)}</p><p className="text-xs text-muted">{org.funds.pendingExpenseCount ? `${org.funds.pendingExpenseCount} pending approval` : "None pending"}</p></Card>
+            <Card title="Available balance"><p className="text-2xl font-semibold text-primary">{formatPeso(org.funds.available)}</p><p className="text-xs text-muted">Collected{Number(org.funds.otherIncome) > 0 ? " + other funds" : ""} − expenses</p></Card>
           </div>
 
           {manage && org.pendingPayments.length > 0 && (

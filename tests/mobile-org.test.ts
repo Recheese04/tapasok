@@ -11,6 +11,8 @@ import { POST as sessionToggle } from "@/app/api/mobile/org/[orgId]/events/[id]/
 import { GET as membersGet } from "@/app/api/mobile/org/[orgId]/members/route";
 import { GET as docsGet } from "@/app/api/mobile/org/[orgId]/documents/route";
 import { GET as memberGet } from "@/app/api/mobile/org/[orgId]/members/[userId]/route";
+import { GET as expensesGet, POST as expensePost } from "@/app/api/mobile/org/[orgId]/expenses/route";
+import { POST as expenseDecide } from "@/app/api/mobile/org/[orgId]/expenses/[id]/route";
 import { GET as memberEvents } from "@/app/api/mobile/events/route";
 import { GET as memberAnnouncements } from "@/app/api/mobile/announcements/route";
 import { GET as memberNotifications } from "@/app/api/mobile/notifications/route";
@@ -59,8 +61,8 @@ describe("mobile org dashboards: each position gets its own capabilities, enforc
     const expected = {
       MEMBER: [],
       OFFICER: ["members.basic", "events.manage", "attendance.view_org", "evaluations.results", "evaluations.manage", "obligations.view_org"],
-      PRESIDENT: ["members.basic", "members.roster", "joinrequests.review", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "fees.view_org", "fees.manage", "reports.finance", "evaluations.results", "evaluations.manage", "obligations.view_org"],
-      TREASURER: ["members.basic", "fees.view_org", "fees.manage", "reports.finance"],
+      PRESIDENT: ["members.basic", "members.roster", "joinrequests.review", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "fees.view_org", "fees.manage", "reports.finance", "expenses.approve", "evaluations.results", "evaluations.manage", "obligations.view_org"],
+      TREASURER: ["members.basic", "fees.view_org", "fees.manage", "reports.finance", "expenses.record"],
       AUDITOR: ["members.basic", "fees.view_org", "reports.finance"],
       SECRETARY: ["members.basic", "members.roster", "joinrequests.review", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "evaluations.results", "evaluations.manage", "obligations.view_org"],
     } as const;
@@ -298,6 +300,38 @@ describe("mobile org dashboards: each position gets its own capabilities, enforc
     const viaB = await data(await memberGet(req(await tokenFor(w.presidentB.id)), ctx({ orgId: w.orgB.id, userId: m })));
     expect(viaB.attendance.counts).toEqual({ PRESENT: 0, LATE: 0, ABSENT: 1, EXCUSED: 0 });
     expect(viaB.finance.fees).toHaveLength(0);
+  });
+
+  it("expenses on mobile: Treasurer records, President approves, balance updates once; Auditor/Adviser read-only; other orgs refused", async () => {
+    const w = await makeWorld();
+    await seedFinance(w); // ₱40 confirmed collected in Org A
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+    const rec = (t: string, over: Record<string, unknown> = {}) => expensePost(req(t, { type: "EXPENSE", title: "Printing", amount: "25", category: "PRINTING", occurredOn: today, purpose: "Flyers", requestId: crypto.randomUUID(), ...over }), O(w.orgA.id));
+    const treasurer = await tokenFor(w.a.TREASURER.id);
+    const president = await tokenFor(w.a.PRESIDENT.id);
+    for (const role of ["PRESIDENT", "AUDITOR", "ADVISER", "SECRETARY", "MEMBER"] as const) expect((await rec(await tokenFor(w.a[role].id))).status, role).toBe(403);
+    const created = await rec(treasurer);
+    expect(created.status).toBe(201);
+    const { id } = await data(created);
+    const list = await data(await expensesGet(req(treasurer), O(w.orgA.id)));
+    expect(list).toMatchObject({ canRecord: true, canApprove: false, summary: { available: "40.00", pendingExpenseCount: 1 } });
+    // the treasurer cannot approve; auditor/adviser cannot decide or cancel
+    expect((await expenseDecide(req(treasurer, { action: "approve" }), ctx({ orgId: w.orgA.id, id }))).status).toBe(403);
+    for (const role of ["AUDITOR", "ADVISER"] as const) {
+      const t = await tokenFor(w.a[role].id);
+      expect((await data(await expensesGet(req(t), O(w.orgA.id)))).canApprove).toBe(false);
+      for (const action of ["approve", "reject", "cancel", "reverse"]) expect((await expenseDecide(req(t, { action, reason: "x x x" }), ctx({ orgId: w.orgA.id, id }))).status, `${role} ${action}`).toBe(403);
+    }
+    // a president of another org naming their org with this record id gets 404
+    expect((await expenseDecide(req(await tokenFor(w.presidentB.id), { action: "approve" }), ctx({ orgId: w.orgB.id, id }))).status).toBe(404);
+    const ok = await expenseDecide(req(president, { action: "approve" }), ctx({ orgId: w.orgA.id, id }));
+    expect(await data(ok)).toMatchObject({ ok: true, available: "15.00" });
+    expect((await expenseDecide(req(president, { action: "approve" }), ctx({ orgId: w.orgA.id, id }))).status).toBe(409);
+    const ov = await data(await overviewGet(req(president), O(w.orgA.id)));
+    expect(ov.finance).toMatchObject({ collected: "40.00", expenses: "25.00", available: "15.00" });
+    // too large to approve
+    const big = await data(await rec(treasurer, { amount: "100" }));
+    expect(await data(await expenseDecide(req(president, { action: "approve" }), ctx({ orgId: w.orgA.id, id: big.id })))).toMatchObject({ error: { message: expect.stringMatching(/Not enough funds/) } });
   });
 
   it("rejects missing/invalid tokens and system administrators on every organization route", async () => {
