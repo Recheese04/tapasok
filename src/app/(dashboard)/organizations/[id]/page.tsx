@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { OrganizationRole } from "@/generated/prisma/enums";
 import { requireUser } from "@/lib/auth/dal";
 import { canOrg, hasOrgRole, isSystemAdmin } from "@/lib/permissions";
+import { DESIGNATABLE_ROLES } from "@/lib/permissions/policy";
 import { getOrganizationForViewer } from "@/features/organizations/queries";
 import { endMembershipAction, setOrganizationStatusAction, syncMembersAction } from "@/features/organizations/actions";
 import { missingAdviser } from "@/features/organizations/service";
@@ -39,6 +40,9 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
 
   const admin = isSystemAdmin(user);
   const canManageMembers = org.status === "ACTIVE" && hasOrgRole(user, id, ["PRESIDENT"]);
+  // The Adviser may designate officers (change positions among Member and the officer positions), nothing else.
+  const canDesignate = !canManageMembers && org.status === "ACTIVE" && canOrg(user, "officers.designate", id);
+  const designatable = DESIGNATABLE_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }));
   const latestCode = canManageMembers ? await getLatestJoinCode(id) : null;
   const canReview = org.status === "ACTIVE" && canOrg(user, "joinrequests.review", id);
   const [requests, decided] = canReview ? await Promise.all([pendingRequests(id), recentDecisions(id)]) : [[], []];
@@ -117,7 +121,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
                     <th scope="col" className="px-4 py-3 font-semibold">Name</th>
                     <th scope="col" className="px-4 py-3 font-semibold">{org.rosterLevel === "full" ? "Email" : "Student no."}</th>
                     <th scope="col" className="px-4 py-3 font-semibold">Position</th>
-                    {canManageMembers && <th scope="col" className="px-4 py-3 text-right font-semibold">Actions</th>}
+                    {(canManageMembers || canDesignate) && <th scope="col" className="px-4 py-3 text-right font-semibold">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="[&>tr:hover]:bg-primary-soft/30">
@@ -134,6 +138,15 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
                         </td>
                         <td className="px-4 py-3 text-muted">{org.rosterLevel === "full" ? m.user.email : (m.user.studentProfile?.studentNumber ?? "—")}</td>
                         <td className="px-4 py-3"><Badge tone={privileged ? "purple" : m.role === "MEMBER" ? "gray" : "green"}>{m.title ? `${m.title} (${ROLE_LABEL[m.role]})` : ROLE_LABEL[m.role]}</Badge></td>
+                        {canDesignate && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              {DESIGNATABLE_ROLES.includes(m.role)
+                                ? <ChangePositionButton organizationId={org.id} membershipId={m.id} name={name} role={m.role} roles={designatable} />
+                                : <span className="text-xs text-muted">Set by an administrator</span>}
+                            </div>
+                          </td>
+                        )}
                         {canManageMembers && (
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-2">

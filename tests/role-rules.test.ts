@@ -16,7 +16,7 @@ import { POST as annPost } from "@/app/api/mobile/org/[orgId]/announcements/rout
 import { POST as paymentDecide } from "@/app/api/mobile/org/[orgId]/payments/[paymentId]/route";
 import { POST as cashPost } from "@/app/api/mobile/org/[orgId]/fees/[studentFeeId]/payments/route";
 import { POST as mobileScan } from "@/app/api/mobile/scan/route";
-import { ORG_POLICY, READ_ONLY_CAPABILITIES, canOrg, type OrgPermission } from "@/lib/permissions/policy";
+import { ADVISER_WRITE_EXCEPTIONS, ORG_POLICY, READ_ONLY_CAPABILITIES, canOrg, type OrgPermission } from "@/lib/permissions/policy";
 import { navItemsFor } from "@/config/navigation";
 import { decideJoinRequest, submitJoinRequest } from "@/features/organizations/requests";
 import { decideJoinRequestAction, submitJoinRequestAction } from "@/features/organizations/request-actions";
@@ -170,9 +170,10 @@ describe("join requests: the Secretary (and President) review their own organiza
 });
 
 describe("the Adviser is strictly read-only", () => {
-  it("holds no capability that changes data, and the read-only list is exactly what the Adviser has", () => {
+  it("holds no capability that changes data except the approved one (designating officers)", () => {
     const adviserCaps = (Object.keys(ORG_POLICY) as OrgPermission[]).filter((p) => (ORG_POLICY[p] as readonly string[]).includes("ADVISER"));
-    for (const p of adviserCaps) expect(READ_ONLY_CAPABILITIES as readonly string[], p).toContain(p);
+    for (const p of adviserCaps) expect([...READ_ONLY_CAPABILITIES, ...ADVISER_WRITE_EXCEPTIONS] as readonly string[], p).toContain(p);
+    expect(ADVISER_WRITE_EXCEPTIONS).toEqual(["officers.designate"]);
     for (const p of ["attendance.scan", "attendance.manual", "attendance.excuse", "devices.manage", "joinrequests.review", "members.manage", "events.manage", "fees.manage", "expenses.record", "expenses.approve", "consequences.manage", "consequences.waive"] as const) {
       expect(ORG_POLICY[p] as readonly string[], p).not.toContain("ADVISER");
     }
@@ -267,6 +268,42 @@ describe("the Adviser is strictly read-only", () => {
     expect((await db.attendanceRecord.findUniqueOrThrow({ where: { id: rec.id } })).status).toBe("ABSENT");
     // the only thing recorded in the adviser's name is their own sign-in to the app
     expect((await db.auditLog.findMany({ where: { actorUserId: adviser }, select: { action: true } })).map((a) => a.action)).toEqual(["auth.login_mobile"]);
+  });
+
+  it("can designate officers in their own organization, and nothing beyond that", async () => {
+    const w = await makeWorld();
+    const role = async (userId: string, orgId = w.orgA.id) => (await db.organizationMember.findFirstOrThrow({ where: { userId, organizationId: orgId, endedAt: null } })).role;
+    const mid = async (userId: string, orgId = w.orgA.id) => (await db.organizationMember.findFirstOrThrow({ where: { userId, organizationId: orgId, endedAt: null } })).id;
+    const change = async (userId: string, to: string, orgId = w.orgA.id) => changeMemberRoleAction(form({ organizationId: orgId, membershipId: await mid(userId, orgId), role: to }));
+
+    await signInAs(w.a.ADVISER.id);
+    expect(await change(w.a.MEMBER.id, "OFFICER")).toEqual({});
+    expect(await role(w.a.MEMBER.id)).toBe("OFFICER");
+    expect(await change(w.a.SECRETARY.id, "TREASURER")).toEqual({});
+    expect(await change(w.a.OFFICER.id, "MEMBER")).toEqual({});
+    expect(await role(w.a.OFFICER.id)).toBe("MEMBER");
+    // never the President or Adviser positions, in either direction
+    expect((await change(w.a.MEMBER.id, "PRESIDENT")).error).toBeTruthy();
+    expect((await change(w.a.MEMBER.id, "ADVISER")).error).toBeTruthy();
+    expect((await change(w.a.PRESIDENT.id, "MEMBER")).error).toBeTruthy();
+    expect(await role(w.a.PRESIDENT.id)).toBe("PRESIDENT");
+    // not in another organization, and still no adding or removing members
+    await expect(change(w.memberB.id, "OFFICER", w.orgB.id)).rejects.toBeInstanceOf(ForbiddenError);
+    const outsider = await makeUser({ email: "outsider@example.test" });
+    await expect(addMemberAction({}, form({ organizationId: w.orgA.id, email: outsider.email, role: "MEMBER", title: "" }))).rejects.toBeInstanceOf(ForbiddenError);
+    expect(await db.organizationMember.count({ where: { userId: outsider.id } })).toBe(0);
+    await expect(endMembershipAction(form({ organizationId: w.orgA.id, membershipId: await mid(w.a.AUDITOR.id) }))).rejects.toBeInstanceOf(ForbiddenError);
+    // history and audit: the old position is ended, a new one started, and the change is recorded in the adviser's name
+    expect(await db.organizationMember.count({ where: { userId: w.a.MEMBER.id, organizationId: w.orgA.id } })).toBe(2);
+    expect(await db.auditLog.count({ where: { actorUserId: w.a.ADVISER.id, action: "membership.role_change" } })).toBe(3);
+
+    // other positions still cannot change positions; the President still can
+    for (const r of ["SECRETARY", "TREASURER", "AUDITOR", "OFFICER"] as const) {
+      await signInAs(w.a[r].id);
+      await expect(change(w.a.AUDITOR.id, "OFFICER"), r).rejects.toBeInstanceOf(ForbiddenError);
+    }
+    await signInAs(w.a.PRESIDENT.id);
+    expect(await change(w.a.AUDITOR.id, "OFFICER")).toEqual({});
   });
 
   it("is never assessed member fees, in bulk or individually by student number", async () => {

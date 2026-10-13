@@ -14,7 +14,8 @@ forms) can grant any position other than Member.
 |---|---|---|---|---|---|---|---|---|
 | User Management (students, faculty/staff, CSV import, positions), academic setup, organizations, system settings & report | Yes | - | - | - | - | - | - | - |
 | Assign President / Adviser | Yes | - | - | - | - | - | - | - |
-| Assign other positions; add/remove members; change positions | Yes | Yes | - | - | - | - | - | - |
+| Add / remove members; join codes | Yes | Yes | - | - | - | - | - | - |
+| Designate officers (change a position among Member, Officer, Secretary, Treasurer, Auditor) | Yes | Yes | - | - | - | - | Yes | - |
 | Join code (generate/revoke) | Yes | Yes | - | - | - | - | - | - |
 | Review join requests (approve / reject, own organization only) | - | Yes | Yes | - | - | - | - | - |
 | Request to join an organization; see the decision | - | - | - | - | - | - | - | Yes (any student) |
@@ -45,7 +46,7 @@ forms) can grant any position other than Member.
 
 ## Decisions where the specification gave no explicit rule
 - **Positions are capability bundles.** Secretary: attendance, minutes/documents, announcements, join requests. Treasurer and President: all money.
-  Auditor: read-only finance. Officer: events and scanning. **Adviser: strictly read-only** oversight (rosters, attendance,
+  Auditor: read-only finance. Officer: events and scanning. **Adviser: read-only** oversight, with one approved exception: designating officers (rosters, attendance,
   obligations, consequences, evaluation results, finance and reports); the Adviser holds no capability that changes data, never
   scans attendance and is not assessed member fees. Waivers and excuses moved to the President (and Secretary for excuses).
   A test (`tests/role-rules.test.ts`) fails if any write capability is ever given to the Adviser.

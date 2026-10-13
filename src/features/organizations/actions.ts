@@ -5,7 +5,9 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import type { OrganizationRole } from "@/generated/prisma/enums";
 import { db } from "@/lib/database/client";
-import { assertOrgRole, assertSystemAdmin, isSystemAdmin } from "@/lib/permissions";
+import { assertOrgPermission, assertOrgRole, assertSystemAdmin, hasOrgRole, isSystemAdmin } from "@/lib/permissions";
+import { DESIGNATABLE_ROLES } from "@/lib/permissions/policy";
+import { requireUser } from "@/lib/auth/dal";
 import { fieldErrorsOf } from "@/lib/format";
 import { addMemberSchema, membershipIdSchema, organizationSchema } from "@/lib/validation/organizations";
 import { ADMIN_ONLY_ROLES } from "@/features/auth/roles";
@@ -102,17 +104,25 @@ export async function endMembershipAction(formData: FormData) {
   });
 }
 
-/** Changing a position ends the old assignment and starts a new one, so officer history is preserved. */
-export async function changeMemberRoleAction(formData: FormData) {
+/**
+ * Changing a position ends the old assignment and starts a new one, so officer history is preserved.
+ * Who may do it: System Admin (any position), the President (any position except President/Adviser), and the Adviser
+ * (officers.designate: only between Member, Officer, Secretary, Treasurer and Auditor, in their own organization).
+ */
+export async function changeMemberRoleAction(formData: FormData): Promise<{ error?: string }> {
   const { organizationId, membershipId } = membershipIdSchema.parse({
     organizationId: formData.get("organizationId"), membershipId: formData.get("membershipId"),
   });
   const role = z.enum(["PRESIDENT", "SECRETARY", "TREASURER", "AUDITOR", "OFFICER", "ADVISER", "MEMBER"]).parse(formData.get("role")) as OrganizationRole;
-  const actor = await assertOrgRole(organizationId, ["PRESIDENT"]);
+  const user = await requireUser();
+  const manager = hasOrgRole(user, organizationId, ["PRESIDENT"]); // includes System Admin
+  const actor = manager ? user : await assertOrgPermission("officers.designate", organizationId);
 
   const current = await db.organizationMember.findFirst({ where: { id: membershipId, organizationId, endedAt: null } });
-  if (!current || current.role === role) return;
-  if (!isSystemAdmin(actor) && (ADMIN_ONLY_ROLES.includes(role) || ADMIN_ONLY_ROLES.includes(current.role))) return;
+  if (!current) return { error: "That member was not found." };
+  if (current.role === role) return {};
+  if (!isSystemAdmin(actor) && (ADMIN_ONLY_ROLES.includes(role) || ADMIN_ONLY_ROLES.includes(current.role))) return { error: "Only a System Admin assigns the President and the Adviser." };
+  if (!manager && (!DESIGNATABLE_ROLES.includes(role) || !DESIGNATABLE_ROLES.includes(current.role))) return { error: "You can only set Member, Officer, Secretary, Treasurer or Auditor." };
 
   try {
     await db.$transaction([
@@ -122,5 +132,7 @@ export async function changeMemberRoleAction(formData: FormData) {
     ]);
   } catch (e) {
     if (!isUniqueViolation(e)) throw e; // e.g. the organization already has a president
+    return { error: "That position could not be assigned." };
   }
+  return {};
 }

@@ -27,8 +27,9 @@ function ChangePositionForm({ organizationId, membershipId, role, roles }: { org
         setError(null);
         start(async () => {
           try {
-            await changeMemberRoleAction(fd);
-            modal?.close();
+            const res = await changeMemberRoleAction(fd);
+            if (res?.error) setError(res.error);
+            else modal?.close();
           } catch {
             setError("You are not allowed to make that change.");
           }

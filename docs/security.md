@@ -25,8 +25,9 @@ automated test in `tests/` that runs against a real PostgreSQL database.
 - IDs in URLs are verified against the caller's memberships (other organizations' records return 404 / 403).
 - System administration (`users.manage` etc.) is separate from organization positions; no position grants it.
 - Organization, member, finance, payment and RFID routes are covered by permission tests for every position.
-- The Adviser is read-only everywhere: no capability that changes data (tested against every write action and mobile
-  endpoint, with a check that nothing was changed or logged in the Adviser's name).
+- The Adviser is read-only everywhere except designating officers (changing an existing member's position among Member,
+  Officer, Secretary, Treasurer and Auditor in their own organization). Every other write action and mobile endpoint refuses
+  the Adviser (tested, with a check that nothing was changed or logged in the Adviser's name).
 - Join requests are decided only by the President or Secretary of the request's own organization; nobody can decide their
   own request.
 

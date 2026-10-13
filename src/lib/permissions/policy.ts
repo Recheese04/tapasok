@@ -3,7 +3,8 @@
 // code always checks the capability, never a position's display name.
 // Organization roles apply only inside the organization where they are held, and System Admin is a
 // separate system-level flag with NO implicit access to organization modules.
-// The Adviser is strictly READ-ONLY: it appears only in viewing and report capabilities, never in one that changes data.
+// The Adviser is READ-ONLY with ONE exception: it may designate officers (officers.designate). It appears only in viewing and
+// report capabilities and in officers.designate, never in any other capability that changes data.
 import type { OrganizationRole, SystemRole } from "@/generated/prisma/enums";
 
 export type PolicyUser = {
@@ -31,6 +32,9 @@ export const ORG_POLICY = {
   "members.manage": ["PRESIDENT"],
   "joincode.manage": ["PRESIDENT"],
   "joinrequests.review": ["PRESIDENT", "SECRETARY"],
+  // Change an existing member's position among Member, Officer, Secretary, Treasurer and Auditor. Adding or removing members
+  // stays with members.manage; President and Adviser positions are assigned by a System Admin only.
+  "officers.designate": ["PRESIDENT", "ADVISER"],
   // Events and attendance
   "events.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "attendance.scan": ["PRESIDENT", "SECRETARY", "OFFICER"],
@@ -57,12 +61,19 @@ export const ORG_POLICY = {
   "reports.finance": ["PRESIDENT", "TREASURER", "AUDITOR", "ADVISER"],
 } as const satisfies Record<string, readonly OrganizationRole[]>;
 
-/** Capabilities that only read. Every other capability changes data and must never include the Adviser (enforced by tests). */
+/** Capabilities that only read. Every other capability changes data and must not include the Adviser, except
+ *  ADVISER_WRITE_EXCEPTIONS (enforced by tests). */
 export const READ_ONLY_CAPABILITIES = [
   "org.view", "members.roster", "members.basic", "events.view", "announcements.view", "documents.view", "attendance.view_org",
   "obligations.view_org", "consequences.view_org", "evaluations.results", "fees.view_org", "documents.audit",
   "reports.attendance", "reports.consequences", "reports.finance",
 ] as const satisfies readonly (keyof typeof ORG_POLICY)[];
+
+/** The only data-changing capabilities the Adviser holds, approved explicitly. */
+export const ADVISER_WRITE_EXCEPTIONS = ["officers.designate"] as const satisfies readonly (keyof typeof ORG_POLICY)[];
+
+/** Positions that officers.designate may set or change (both the current and the new position must be one of these). */
+export const DESIGNATABLE_ROLES: OrganizationRole[] = ["MEMBER", "OFFICER", "SECRETARY", "TREASURER", "AUDITOR"];
 
 export type OrgPermission = keyof typeof ORG_POLICY;
 

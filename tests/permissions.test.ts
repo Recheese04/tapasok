@@ -23,6 +23,7 @@ const EXPECT: Record<OrgPermission, readonly (typeof ROLES)[number][]> = {
   "members.manage": ["PRESIDENT"],
   "joincode.manage": ["PRESIDENT"],
   "joinrequests.review": ["PRESIDENT", "SECRETARY"],
+  "officers.designate": ["PRESIDENT", "ADVISER"],
   "events.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "attendance.scan": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "attendance.manual": ["PRESIDENT", "SECRETARY"],
