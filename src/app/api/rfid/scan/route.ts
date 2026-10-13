@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateDevice } from "@/features/attendance/devices";
 import { consumeEnrollment } from "@/features/attendance/rfid-enrollment";
-import { MESSAGES, rfidTap } from "@/features/attendance/service";
+import { MESSAGES, openSessionsFor, rfidTap } from "@/features/attendance/service";
 
 // Integration endpoint for RFID terminals (for example RC522 + NodeMCU over HTTPS).
 //   POST /api/rfid/scan   Authorization: Bearer <device key>
-//   body: { "sessionId": "<uuid>", "cardUid": "04A1B2C3" }
+//   body: { "cardUid": "04A1B2C3" }  (optional "sessionId": "<uuid>" pins the tap to one session)
+// Without a sessionId the tap goes to the single session of the terminal's organization that an officer has activated and
+// that is open now; none open or several open is refused with a message (never guessed).
 // Responses: 200 { ok: true, status: "PRESENT" | "LATE", name } or { ok: false, code, message }.
 // Duplicate taps are rejected by the same rules as every other capture method, so retries are safe.
 //
@@ -32,8 +34,20 @@ export async function POST(request: Request) {
       : NextResponse.json({ ok: false, code: "register_failed", message: enrolled.message }, { status: 409 });
   }
 
-  if (!parsed.data.sessionId) return NextResponse.json({ ok: false, code: "bad_request", message: "sessionId is required to record attendance." }, { status: 400 });
-  const res = await rfidTap(device, parsed.data.sessionId, parsed.data.cardUid.replace(/[\s:-]/g, ""));
-  if (res.ok) return NextResponse.json({ ok: true, status: res.status, name: res.firstName });
+  // No session named by the terminal: use the one session an officer has activated for this terminal's organization.
+  let sessionId = parsed.data.sessionId;
+  let sessionName: string | undefined;
+  if (!sessionId) {
+    const open = await openSessionsFor(device.organizationId);
+    if (open.length === 0) return NextResponse.json({ ok: false, code: "no_open_session", message: "No attendance is open right now. An officer must open check-in for the session (Activate scanner on the website, or Open in the app)." }, { status: 422 });
+    if (open.length > 1) {
+      const names = open.map((s) => `${s.event.title} (${s.label})`).join(", ");
+      return NextResponse.json({ ok: false, code: "several_open_sessions", message: `More than one session is open: ${names}. Deactivate the one not in use.` }, { status: 409 });
+    }
+    sessionId = open[0].id;
+    sessionName = `${open[0].event.title} · ${open[0].label}`;
+  }
+  const res = await rfidTap(device, sessionId, parsed.data.cardUid.replace(/[\s:-]/g, ""));
+  if (res.ok) return NextResponse.json({ ok: true, status: res.status, name: res.firstName, ...(sessionName ? { session: sessionName } : {}) });
   return NextResponse.json({ ok: false, code: res.reason, message: MESSAGES[res.reason] }, { status: res.reason === "duplicate" ? 200 : 422 });
 }

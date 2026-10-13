@@ -126,6 +126,19 @@ export async function revokeSessionQr(officer: PolicyUser & { id: string }, sess
   return { ok: true };
 }
 
+/**
+ * Sessions an RFID terminal can record into without being told which: sessions of the terminal's organization that an
+ * officer has activated, that are not finalized, whose event is published, and that are inside their open/close time.
+ * The terminal records automatically only when exactly one matches (two at once would be a guess).
+ */
+export function openSessionsFor(organizationId: string, now = new Date()) {
+  return db.eventSession.findMany({
+    where: { active: true, finalizedAt: null, opensAt: { lte: now }, closesAt: { gte: now }, event: { organizationId, status: "PUBLISHED" } },
+    orderBy: { opensAt: "asc" }, take: 5,
+    select: { id: true, label: true, event: { select: { title: true } } },
+  });
+}
+
 /** Method A: a registered RFID terminal reports a card UID. Authentication of the device is the caller's job. */
 export async function rfidTap(device: { id: string; organizationId: string }, sessionId: string, cardUid: string, now = new Date()): Promise<AttendanceResult> {
   const session = await db.eventSession.findUnique({ where: { id: sessionId }, select: { event: { select: { organizationId: true } } } });

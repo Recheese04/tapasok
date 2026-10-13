@@ -105,7 +105,7 @@ describe("RFID card registration: scan to register (captured, then confirmed by 
     const a = await start(w.a.MEMBER.id, device.id);
     await db.rfidEnrollment.update({ where: { id: a }, data: { expiresAt: new Date(Date.now() - 1000) } });
     expect(await rfidEnrollmentStatusAction(a)).toMatchObject({ state: "expired", captured: false, device: "Gate 1" });
-    expect((await post(key, { cardUid: "BBBB2222" })).status).toBe(400); // no window, no session: nothing happens
+    expect((await post(key, { cardUid: "BBBB2222" })).status).toBe(422); // no window and no open session: nothing happens
 
     // captured but not confirmed in time
     const b = await start(w.a.MEMBER.id, device.id);
@@ -118,7 +118,7 @@ describe("RFID card registration: scan to register (captured, then confirmed by 
     const c = await start(w.a.MEMBER.id, device.id);
     await cancelRfidEnrollmentAction(c);
     expect(await rfidEnrollmentStatusAction(c)).toEqual({ state: "cancelled" });
-    expect((await post(key, { cardUid: "BBBB2222" })).status).toBe(400);
+    expect((await post(key, { cardUid: "BBBB2222" })).status).toBe(422);
     expect(await confirmRfidEnrollmentAction(c, {})).toMatchObject({ ok: false });
     expect(await audits("rfid.enroll_cancel")).toBe(1);
 
@@ -230,5 +230,69 @@ describe("RFID card registration: authorization", () => {
     }
     expect((await profile(w.a.OFFICER.id)).rfidUid).toBe("AAAA1111");
     expect((await profile(w.a.MEMBER.id)).rfidUid).toBeNull();
+  });
+});
+
+describe("RFID attendance without setting a session on the terminal", () => {
+  async function terminal() {
+    const w = await makeWorld();
+    await db.studentProfile.create({ data: { userId: w.a.MEMBER.id, studentNumber: "2024-0001", rfidUid: "04A1B2C3" } });
+    const reg = await registerDevice(w.a.PRESIDENT.id, w.orgA.id, "Gate 1");
+    if (!reg.ok) throw new Error("device");
+    return { w, key: reg.key };
+  }
+  const recorded = () => db.attendanceRecord.findMany({ select: { sessionId: true, userId: true, source: true } });
+
+  it("records into the one session an officer activated, and says which", async () => {
+    const { w, key } = await terminal();
+    const ev = await makeEvent(w.orgA.id, { title: "General Assembly" });
+    const res = await post(key, { cardUid: "04:a1:b2:c3" });
+    expect(await res.json()).toEqual({ ok: true, status: "PRESENT", name: w.a.MEMBER.firstName, session: "General Assembly · Session 1" });
+    expect(await recorded()).toEqual([{ sessionId: ev.session.id, userId: w.a.MEMBER.id, source: "RFID" }]);
+    expect(await (await post(key, { cardUid: "04A1B2C3" })).json()).toMatchObject({ ok: false, code: "duplicate" });
+  });
+
+  it("refuses when nothing is open: not activated, closed, finalized, unpublished, or only another organization's", async () => {
+    const { w, key } = await terminal();
+    const none = async () => {
+      const res = await post(key, { cardUid: "04A1B2C3" });
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ ok: false, code: "no_open_session", message: expect.stringMatching(/Activate scanner/) });
+    };
+    await none();
+    await makeEvent(w.orgA.id, { active: false });
+    await makeEvent(w.orgA.id, { title: "Later", opens: new Date(Date.now() + 3600_000), startsAt: new Date(Date.now() + 3700_000), closes: new Date(Date.now() + 7200_000), endsAt: new Date(Date.now() + 7200_000) });
+    await makeEvent(w.orgA.id, { title: "Draft", status: "DRAFT" });
+    const fin = await makeEvent(w.orgA.id, { title: "Done" });
+    await db.eventSession.update({ where: { id: fin.session.id }, data: { finalizedAt: new Date() } });
+    await makeEvent(w.orgB.id, { title: "Other organization" });
+    await none();
+    expect(await db.attendanceRecord.count()).toBe(0);
+  });
+
+  it("never guesses between two open sessions, and a pinned session still works", async () => {
+    const { w, key } = await terminal();
+    const a = await makeEvent(w.orgA.id, { title: "Assembly" });
+    await makeEvent(w.orgA.id, { title: "Seminar" });
+    const res = await post(key, { cardUid: "04A1B2C3" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ ok: false, code: "several_open_sessions", message: expect.stringMatching(/Assembly.*Seminar|Seminar.*Assembly/) });
+    expect(await db.attendanceRecord.count()).toBe(0);
+    // a terminal pinned to a session records there regardless
+    expect(await (await post(key, { sessionId: a.session.id, cardUid: "04A1B2C3" })).json()).toMatchObject({ ok: true, status: "PRESENT" });
+    expect((await recorded())[0].sessionId).toBe(a.session.id);
+  });
+
+  it("an open registration window still takes the tap first, with no attendance recorded", async () => {
+    const { w, key } = await terminal();
+    await makeEvent(w.orgA.id);
+    const device = await db.scannerDevice.findFirstOrThrow();
+    await signInAs(w.admin.id);
+    await startRfidEnrollmentAction(w.a.OFFICER.id, device.id).catch(() => null); // officer has no student profile: refused
+    await db.studentProfile.create({ data: { userId: w.a.OFFICER.id, studentNumber: "2024-0002" } });
+    const started = await startRfidEnrollmentAction(w.a.OFFICER.id, device.id);
+    if ("error" in started) throw new Error(started.error);
+    expect(await (await post(key, { cardUid: "0E0E0E0E" })).json()).toMatchObject({ ok: true, captured: true });
+    expect(await db.attendanceRecord.count()).toBe(0);
   });
 });

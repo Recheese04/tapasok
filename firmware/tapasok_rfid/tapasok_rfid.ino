@@ -132,8 +132,9 @@ const char *WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 // It starts with "tpd_". Treat it like a password.
 const char *DEVICE_KEY = "tpd_PASTE_YOUR_DEVICE_KEY_HERE";
 
-// Optional. The attendance session to record into. It can also be set later from the Serial Monitor
-// (type:  session <link or id>) without re-uploading. Leave "" to set it from the Serial Monitor.
+// Leave this "" (recommended). Taps then go automatically to the session an officer activated in Tapasok
+// ("Activate scanner" on the website, or "Open" under Manage events in the app). Only put a session link here to pin this
+// terminal to one session; it can also be pinned or unpinned later from the Serial Monitor (session <link> / session clear).
 const char *DEFAULT_SESSION_ID = "";
 
 const char *SERVER_URL = "https://tapasok-beta.vercel.app/api/rfid/scan";
@@ -253,8 +254,8 @@ void loadSession() {
 
 void printHelp() {
   Serial.println(F("\nCommands (type in the Serial Monitor, 115200 baud, 'Newline'):"));
-  Serial.println(F("  session <link or id>   record taps into this attendance session"));
-  Serial.println(F("  session clear          stop recording attendance (card registration still works)"));
+  Serial.println(F("  session <link or id>   pin this terminal to one session (optional)"));
+  Serial.println(F("  session clear          back to automatic: the session an officer activated"));
   Serial.println(F("  status                 show Wi-Fi, time, reader and session"));
   Serial.println(F("  help                   show this list"));
 }
@@ -264,7 +265,7 @@ void printStatus() {
   Serial.print(F("Wi-Fi     : ")); Serial.println(WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String("not connected"));
   Serial.print(F("Clock set : ")); Serial.println(time(nullptr) > 1700000000 ? F("yes") : F("NO (HTTPS will fail until the time is set)"));
   Serial.print(F("Reader    : 0x")); Serial.println(mfrc522.PCD_ReadRegister(mfrc522.VersionReg), HEX);
-  Serial.print(F("Session   : ")); Serial.println(sessionId[0] ? sessionId : "(none - taps are only used for card registration)");
+  Serial.print(F("Session   : ")); Serial.println(sessionId[0] ? sessionId : "automatic (the session an officer activated)");
   Serial.print(F("Hardware  : ")); Serial.println(WiFi.macAddress());
   Serial.print(F("Free heap : ")); Serial.println(ESP.getFreeHeap());
 }
@@ -280,7 +281,7 @@ void handleSerial() {
   else if (lower == "status") printStatus();
   else if (lower == "session clear" || lower == "session none") {
     saveSession("");
-    Serial.println(F("Session cleared. Taps will not record attendance."));
+    Serial.println(F("Back to automatic: taps go to the session an officer activated."));
   } else if (lower.startsWith("session")) {
     String id = findSessionId(line);
     if (!id.length()) { Serial.println(F("No session id found. Paste the link of the session's attendance page.")); return; }
@@ -424,7 +425,10 @@ void sendScanToServer(const String &cardUID) {
     feedback(FB_REGISTERED);
   } else if (jsonTrue(body, "ok")) {
     String status = jsonText(body, "status");
-    Serial.print(status == "LATE" ? F("RECORDED (LATE): ") : F("RECORDED (PRESENT): ")); Serial.println(name);
+    Serial.print(status == "LATE" ? F("RECORDED (LATE): ") : F("RECORDED (PRESENT): ")); Serial.print(name);
+    String session = jsonText(body, "session");
+    if (session.length()) { Serial.print(F("  [")); Serial.print(session); Serial.print(F("]")); }
+    Serial.println();
     feedback(FB_OK);
   } else if (code == "duplicate") {
     // On a retry this means the earlier try already got through.
@@ -433,7 +437,11 @@ void sendScanToServer(const String &cardUID) {
   } else if (code == "unknown_card") {
     Serial.print(F("UNKNOWN CARD. Register this card in Tapasok. Card UID: ")); Serial.println(cardUID);
     feedback(FB_REJECTED);
+  } else if (code == "no_open_session") {
+    Serial.println(F("NO ATTENDANCE OPEN. An officer must open check-in: \"Activate scanner\" on the website, or \"Open\" in the app."));
+    feedback(FB_REJECTED);
   } else if (code == "bad_request" && !sessionId[0]) {
+    // Older Tapasok servers needed the session set on the terminal.
     Serial.println(F("NO SESSION SET. Type:  session <link of the session's attendance page>"));
     feedback(FB_REJECTED);
   } else {

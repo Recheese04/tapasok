@@ -62,18 +62,20 @@ If the card already belongs to another student, or the student already has a car
 move or replacement first. You can also use **Enter UID manually**: tap an unknown card during an event, and the
 Serial Monitor prints `Card UID: 04A1B2C3`.
 
-## 5. Take attendance
+## 5. Take attendance (officers: no computer needed)
 
-1. In Tapasok, open the event and the session's **Attendance list**. Make sure the session is **open for check-in**.
-2. Copy the page link from the address bar. It ends in `/events/<id>/sessions/<id>`.
-3. In the Serial Monitor, type `session ` followed by the link, then press Enter:
-   ```
-   session https://tapasok-beta.vercel.app/events/.../sessions/...
-   ```
-   The terminal saves it, so it survives a restart. Set it again for each new session. Type `session clear` to stop.
-4. Students tap their cards.
+1. An officer opens check-in for the event's session:
+   - on the website: open the event and click **Activate scanner** on the session, or
+   - in the Tapasok app: **Manage → Manage events**, then **Open** on the session.
+2. Students tap their cards. The terminal records them into that session automatically and shows
+   `RECORDED (PRESENT): Juan  [General Assembly · Session 1]`.
+3. When it's over, the officer closes check-in (**Deactivate scanner** / **Close**).
 
-Other commands: `status` (Wi-Fi, clock, reader, session) and `help`.
+The terminal uses the one session of its organization that is open right now. If none is open it shows
+`NO ATTENDANCE OPEN`. If two are open at the same time it refuses and names them; close the one not in use. It never guesses.
+
+Optional, for whoever manages the terminal: `session <link>` in the Serial Monitor pins the terminal to one session, and
+`session clear` returns it to automatic. Other commands: `status` and `help`.
 
 ## What the terminal shows
 
@@ -82,7 +84,7 @@ Other commands: `status` (Wi-Fi, clock, reader, session) and `help`.
 | Recorded | `RECORDED (PRESENT): Juan` or `(LATE)` | 1 long |
 | Already recorded | `ALREADY RECORDED for this session.` | 2 short |
 | Card read for registration | `CARD READ FOR REGISTRATION (Juan)` (confirm it on the website) | 3 short |
-| Refused | `UNKNOWN CARD`, `NOT RECORDED: <reason>`, `NO SESSION SET`, `REFUSED: the device key…` | 5 fast |
+| Refused | `UNKNOWN CARD`, `NO ATTENDANCE OPEN`, `NOT RECORDED: <reason>`, `REFUSED: the device key…` | 5 fast |
 | Network problem | `NOT SENT: network or server problem` | 10 very fast |
 
 If a tap fails because of the network, the terminal retries up to 3 times. It can't record a student twice, because
