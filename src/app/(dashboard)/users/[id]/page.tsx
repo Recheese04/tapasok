@@ -87,7 +87,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         {user.status !== "DISABLED" && <AssignMembershipForm userId={user.id} organizations={orgs} />}
       </section>
 
-      {sp ? <RfidPanel userId={user.id} current={sp.rfidUid ?? null} devices={devices.map((d) => ({ id: d.id, name: d.name, organization: d.organization.name, lastSeenAt: d.lastSeenAt?.toISOString() ?? null }))} /> : null}
+      {sp ? <RfidPanel userId={user.id} student={{ name: `${user.firstName} ${user.lastName}`, studentNumber: sp.studentNumber }} current={sp.rfidUid ?? null} devices={devices.map((d) => ({ id: d.id, name: d.name, organization: d.organization.name, lastSeenAt: d.lastSeenAt?.toISOString() ?? null }))} /> : null}
       <UserForm tree={tree} values={values} />
       <StatusPanel userId={user.id} status={user.status} isSelf={isSelf} />
       <SystemAdminPanel userId={user.id} isAdmin={user.systemRole === "SYSTEM_ADMIN"} isSelf={isSelf} status={user.status} />

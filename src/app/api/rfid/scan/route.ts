@@ -10,9 +10,10 @@ import { MESSAGES, rfidTap } from "@/features/attendance/service";
 // Responses: 200 { ok: true, status: "PRESENT" | "LATE", name } or { ok: false, code, message }.
 // Duplicate taps are rejected by the same rules as every other capture method, so retries are safe.
 //
-// Card registration: while an administrator has opened "tap to register" on this terminal, the next tap registers the card
-// to that student instead of recording attendance, and the response is { ok: true, registered: true, name }. sessionId is
-// not needed for that tap, so a terminal can register cards when no event is running.
+// Card registration: while a System Admin has opened "Scan RFID card" for a student on this terminal, the next tap is
+// captured for registration instead of recording attendance. The admin confirms the detected UID on the website before it
+// is saved. Response: { ok: true, registered: true, captured: true, name } ("registered" is kept for terminals running the
+// first firmware; it means the tap was taken for registration). sessionId is not needed for that tap.
 const bodySchema = z.object({ sessionId: z.uuid().optional(), cardUid: z.string().trim().regex(/^[0-9A-Fa-f:\- ]{4,30}$/) });
 
 export async function POST(request: Request) {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   const enrolled = await consumeEnrollment(device.id, parsed.data.cardUid);
   if (enrolled) {
     return enrolled.ok
-      ? NextResponse.json({ ok: true, registered: true, name: enrolled.name })
+      ? NextResponse.json({ ok: true, registered: true, captured: true, name: enrolled.name })
       : NextResponse.json({ ok: false, code: "register_failed", message: enrolled.message }, { status: 409 });
   }
 

@@ -93,6 +93,9 @@ export async function createStudent(
     await db.auditLog.create({
       data: { actorUserId: actorId, action: "student.create", targetType: "user", targetId: user.id },
     });
+    if (fields.rfidUid) {
+      await db.auditLog.create({ data: { actorUserId: actorId, action: "rfid.register_manual", targetType: "user", targetId: user.id, metadata: { cardUid: fields.rfidUid, previous: null, method: "account_form" } } });
+    }
     await afterPlacementChange(user.id, fields);
     return { ok: true, userId: user.id, setupPath: cred.active ? null : setupPath(t.token), initialPassword: cred.initialPassword };
   } catch (e) {
@@ -111,10 +114,8 @@ export async function updateStudent(
   if (!profile) return { ok: false, error: "Student not found." };
   const bad = await checkPlacement(fields);
   if (bad) return { ok: false, fieldErrors: bad };
-  if (fields.rfidUid && fields.rfidUid !== profile.rfidUid) {
-    const taken = await db.studentProfile.findUnique({ where: { rfidUid: fields.rfidUid }, select: { userId: true } });
-    if (taken && taken.userId !== userId) return { ok: false, fieldErrors: { rfidUid: DUPLICATE.rfid } };
-  }
+  // The RFID card is not changed here. Registering, replacing, moving and removing a card go through the RFID card section
+  // (src/features/attendance/rfid-enrollment.ts), which asks for confirmation and audits each change.
 
   try {
     await db.$transaction([
@@ -126,7 +127,6 @@ export async function updateStudent(
           middleName: fields.middleName ?? null,
           programId: fields.programId ?? null,
           yearLevel: fields.yearLevel ?? null,
-          rfidUid: fields.rfidUid ?? null,
           contactNumber: fields.contactNumber ?? null,
           streetAddress: fields.streetAddress ?? null,
           ...addressData(address),

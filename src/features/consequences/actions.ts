@@ -13,7 +13,7 @@ export type ConsequenceState = { error?: string; success?: string };
 
 const uuid = z.uuid();
 
-// Rules are configured by consequences.manage (President, Adviser). The organization's real rules are
+// Rules are configured by consequences.manage (President; the Adviser is read-only). The organization's real rules are
 // examples-free: nothing is created or charged unless an authorized person defines and attaches a rule.
 export async function createRuleAction(_prev: ConsequenceState, fd: FormData): Promise<ConsequenceState> {
   const orgId = uuid.safeParse(fd.get("organizationId"));
@@ -95,7 +95,7 @@ export async function updateConsequenceStatusAction(fd: FormData) {
   if (!parsed.success) return;
   const c = await db.consequence.findUnique({ where: { id: parsed.data.consequenceId }, include: { assessment: { include: { adjustments: true, payments: true } } } });
   if (!c || c.status !== "PENDING") return;
-  // Completing needs manage rights; waiving is a stricter approval (adviser).
+  // Completing needs manage rights; waiving uses its own capability (President).
   const actor = await assertOrgPermission(parsed.data.status === "WAIVED" ? "consequences.waive" : "consequences.manage", c.organizationId);
 
   // A fine is completed by paying it (the ledger does this automatically); only service obligations are completed by hand.

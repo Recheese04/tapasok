@@ -491,11 +491,14 @@ describe("closing sessions, absences and corrections", () => {
     expect(await adjustAttendance(await auth(w.a.OFFICER.id), rec.id, "EXCUSED", "medical")).toMatchObject({ ok: false });
     expect(await adjustAttendance(await auth(w.a.MEMBER.id), rec.id, "PRESENT", "me")).toMatchObject({ ok: false });
     expect(await adjustAttendance(await auth(w.presidentB.id), rec.id, "EXCUSED", "x")).toMatchObject({ ok: false });
-    expect(await adjustAttendance(await auth(w.a.ADVISER.id), rec.id, "PRESENT", "advisers can only excuse")).toMatchObject({ ok: false });
-    expect(await adjustAttendance(await auth(w.a.ADVISER.id), rec.id, "EXCUSED", "")).toMatchObject({ ok: false }); // remark required
-    expect(await adjustAttendance(await auth(w.a.ADVISER.id), rec.id, "EXCUSED", "Medical certificate")).toEqual({ ok: true });
+    // the Adviser is read-only: no corrections and no excuses
+    expect(await adjustAttendance(await auth(w.a.ADVISER.id), rec.id, "PRESENT", "adviser")).toMatchObject({ ok: false });
+    expect(await adjustAttendance(await auth(w.a.ADVISER.id), rec.id, "EXCUSED", "Medical certificate")).toMatchObject({ ok: false });
+    expect((await db.attendanceRecord.findUniqueOrThrow({ where: { id: rec.id } })).status).toBe("ABSENT");
+    expect(await adjustAttendance(await auth(w.a.SECRETARY.id), rec.id, "EXCUSED", "")).toMatchObject({ ok: false }); // remark required
+    expect(await adjustAttendance(await auth(w.a.SECRETARY.id), rec.id, "EXCUSED", "Medical certificate")).toEqual({ ok: true });
 
-    expect(await db.attendanceRecord.findUniqueOrThrow({ where: { id: rec.id } })).toMatchObject({ status: "EXCUSED", modifiedById: w.a.ADVISER.id, remark: "Medical certificate" });
+    expect(await db.attendanceRecord.findUniqueOrThrow({ where: { id: rec.id } })).toMatchObject({ status: "EXCUSED", modifiedById: w.a.SECRETARY.id, remark: "Medical certificate" });
     const log = await db.auditLog.findFirstOrThrow({ where: { action: "attendance.adjust" } });
     expect(log.metadata).toMatchObject({ from: "ABSENT", to: "EXCUSED" });
     expect(await adjustAttendance(await auth(w.a.SECRETARY.id), rec.id, "PRESENT", "Arrived late, scanner was offline")).toEqual({ ok: true });

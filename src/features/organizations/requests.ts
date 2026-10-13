@@ -26,11 +26,52 @@ export function myRequests(userId: string) {
   });
 }
 
-export function pendingRequests(organizationId: string) {
-  return db.joinRequest.findMany({
-    where: { organizationId, status: "PENDING" }, orderBy: { createdAt: "asc" },
-    select: { id: true, message: true, createdAt: true, user: { select: { firstName: true, lastName: true, studentProfile: { select: { studentNumber: true } } } } },
+/**
+ * Pending requests with what a reviewer needs to decide: the student's academic details and how often they asked before.
+ * Contact details beyond the school email, addresses and photos are not included.
+ */
+export async function pendingRequests(organizationId: string) {
+  const rows = await db.joinRequest.findMany({
+    where: { organizationId, status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 200,
+    select: {
+      id: true, message: true, createdAt: true, userId: true,
+      user: {
+        select: {
+          firstName: true, lastName: true, email: true,
+          studentProfile: { select: { studentNumber: true, yearLevel: true, course: true, college: true, program: { select: { code: true, name: true, department: { select: { name: true, college: { select: { code: true } } } } } } } },
+        },
+      },
+    },
   });
+  const earlier = rows.length
+    ? await db.joinRequest.groupBy({ by: ["userId"], where: { organizationId, userId: { in: rows.map((r) => r.userId) }, status: "REJECTED" }, _count: { _all: true } })
+    : [];
+  const rejectedBefore = new Map(earlier.map((e) => [e.userId, e._count._all]));
+  return rows.map((r) => {
+    const sp = r.user.studentProfile;
+    return {
+      id: r.id, message: r.message, createdAt: r.createdAt, userId: r.userId,
+      name: `${r.user.firstName} ${r.user.lastName}`, email: r.user.email,
+      studentNumber: sp?.studentNumber ?? null, yearLevel: sp?.yearLevel ?? null,
+      program: sp?.program ? `${sp.program.code} · ${sp.program.name}` : (sp?.course ?? null),
+      college: sp?.program?.department.college.code ?? sp?.college ?? null,
+      department: sp?.program?.department.name ?? null,
+      rejectedBefore: rejectedBefore.get(r.userId) ?? 0,
+    };
+  });
+}
+export type PendingRequest = Awaited<ReturnType<typeof pendingRequests>>[number];
+
+/** The latest decisions in the organization, with who made them (kept for the reviewers' reference). */
+export async function recentDecisions(organizationId: string, take = 10) {
+  const rows = await db.joinRequest.findMany({
+    where: { organizationId, status: { in: ["APPROVED", "REJECTED"] } }, orderBy: { decidedAt: "desc" }, take,
+    select: { id: true, status: true, decidedAt: true, decisionNote: true, user: { select: { firstName: true, lastName: true } }, decidedBy: { select: { firstName: true, lastName: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id, status: r.status as "APPROVED" | "REJECTED", decidedAt: r.decidedAt, note: r.decisionNote,
+    name: `${r.user.firstName} ${r.user.lastName}`, decidedBy: r.decidedBy ? `${r.decidedBy.firstName} ${r.decidedBy.lastName}` : null,
+  }));
 }
 
 export async function submitJoinRequest(userId: string, organizationId: string, message: string | null): Promise<Result> {
@@ -55,6 +96,9 @@ export async function cancelJoinRequest(userId: string, requestId: string): Prom
 
 /** Approves or rejects a pending request (caller has verified review authority for the request's organization). */
 export async function decideJoinRequest(reviewerId: string, requestId: string, approve: boolean, note: string | null): Promise<Result> {
+  // Nobody decides on their own request, whatever position they hold.
+  const own = await db.joinRequest.findFirst({ where: { id: requestId, userId: reviewerId }, select: { id: true } });
+  if (own) return { ok: false, error: "You cannot decide on your own request." };
   const term = await getActiveTerm();
   try {
     const outcome = await db.$transaction(async (tx) => {

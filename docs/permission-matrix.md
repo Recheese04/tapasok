@@ -16,21 +16,24 @@ forms) can grant any position other than Member.
 | Assign President / Adviser | Yes | - | - | - | - | - | - | - |
 | Assign other positions; add/remove members; change positions | Yes | Yes | - | - | - | - | - | - |
 | Join code (generate/revoke) | Yes | Yes | - | - | - | - | - | - |
-| Review join requests | - | Yes | Yes | - | - | - | - | - |
+| Review join requests (approve / reject, own organization only) | - | Yes | Yes | - | - | - | - | - |
+| Request to join an organization; see the decision | - | - | - | - | - | - | - | Yes (any student) |
 | Roster with emails | Yes | Yes | Yes | - | - | - | Yes | - |
 | Names + student numbers only | - | Yes | Yes | Yes | Yes | Yes | Yes | - |
 | View events / announcements / documents | - | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | Create & edit events (sessions, venue, targets, rules) | - | Yes | Yes | - | - | Yes | - | - |
 | Activate scanner, scan attendance (QR / ID), show check-in QR | - | Yes | Yes | - | - | Yes | - | - |
 | Manual entry, corrections, **finalize sessions** | - | Yes | Yes | - | - | - | - | - |
-| Excuse an absence | - | Yes | Yes | - | - | - | Yes | - |
-| Register RFID terminals | - | Yes | Yes | - | - | - | - | - |
+| Excuse an absence | - | Yes | Yes | - | - | - | - | - |
+| Register / revoke RFID terminals | - | Yes | Yes | - | - | - | - | - |
+| Register, replace or remove a student's RFID card | Yes | - | - | - | - | - | - | - |
 | View organization attendance / attendance report & CSV | - | Yes | Yes | - | - | Yes | Yes | - |
-| Own attendance, obligations, consequences, fees | - | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Own attendance, obligations, consequences, fees | - | Yes | Yes | Yes | Yes | Yes | - (not an attendee or fee payer) | Yes |
+| Check in by scanning the session QR | - | Yes | Yes | Yes | Yes | Yes | - | Yes |
 | Post announcements (targeted); upload / remove documents | - | Yes | Yes | - | - | - | - | - |
 | Document audit trail | - | Yes | - | - | - | - | Yes | - |
-| Configure consequence rules, review / correct consequences | - | Yes | - | - | - | - | Yes | - |
-| Waive a consequence | - | - | - | - | - | - | Yes | - |
+| Configure consequence rules, review / correct consequences | - | Yes | - | - | - | - | - | - |
+| Waive a consequence | - | Yes | - | - | - | - | - | - |
 | View organization consequences | - | Yes | Yes | - | - | Yes | Yes | - |
 | Create & run evaluations; view aggregate results | - | Yes | Yes | - | - | Yes | results only | - |
 | Submit an evaluation (must have attended) | - | Yes | Yes | Yes | Yes | Yes | - | Yes |
@@ -42,7 +45,10 @@ forms) can grant any position other than Member.
 
 ## Decisions where the specification gave no explicit rule
 - **Positions are capability bundles.** Secretary: attendance, minutes/documents, announcements, join requests. Treasurer and President: all money.
-  Auditor: read-only finance. Officer: events and scanning. Adviser: oversight, excusing and waivers.
+  Auditor: read-only finance. Officer: events and scanning. **Adviser: strictly read-only** oversight (rosters, attendance,
+  obligations, consequences, evaluation results, finance and reports); the Adviser holds no capability that changes data, never
+  scans attendance and is not assessed member fees. Waivers and excuses moved to the President (and Secretary for excuses).
+  A test (`tests/role-rules.test.ts`) fails if any write capability is ever given to the Adviser.
 - **Attendance, obligations and consequences are separate records.** An absence or an unfinished obligation never creates a consequence by itself; only a rule attached to the event, or an authorized manual record, does.
 - **Advisers are not student attendees**, so they are never marked absent.
 - **Fines are completed by payment**, not by hand; only community-service obligations are completed manually.

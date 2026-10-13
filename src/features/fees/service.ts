@@ -49,7 +49,8 @@ export async function assignFeeToMembers(actorId: string, feeTypeId: string): Pr
 
   let userIds: string[];
   if (fee.kind === "EVENT_CONTRIBUTION" && fee.event) userIds = await expectedAttendeeIds(fee.event);
-  else userIds = (await db.organizationMember.findMany({ where: { organizationId: fee.organizationId, endedAt: null, user: { status: { not: "DISABLED" } } }, select: { userId: true }, distinct: ["userId"] })).map((m) => m.userId);
+  // Advisers oversee the organization (read-only); like attendance, they are not assessed member fees.
+  else userIds = (await db.organizationMember.findMany({ where: { organizationId: fee.organizationId, endedAt: null, role: { not: "ADVISER" }, user: { status: { not: "DISABLED" } } }, select: { userId: true }, distinct: ["userId"] })).map((m) => m.userId);
 
   const res = await db.studentFee.createMany({
     data: userIds.map((userId) => ({ feeTypeId, userId, organizationId: fee.organizationId, title: fee.name, kind: fee.kind, amountDue: fee.amount, semesterId: fee.semesterId, eventId: fee.eventId })),
@@ -65,9 +66,10 @@ export async function assessMember(actorId: string, feeTypeId: string, studentNu
   const fee = await db.feeType.findUnique({ where: { id: feeTypeId } });
   if (!fee || !fee.active) return { ok: false, error: "This fee is not active." };
   const member = await db.organizationMember.findFirst({
-    where: { organizationId: fee.organizationId, endedAt: null, user: { studentProfile: { studentNumber } } }, select: { userId: true },
+    where: { organizationId: fee.organizationId, endedAt: null, user: { studentProfile: { studentNumber } } }, select: { userId: true, role: true },
   });
   if (!member) return { ok: false, error: "No active member with that student number in this organization." };
+  if (member.role === "ADVISER") return { ok: false, error: "Advisers are not assessed member fees." };
   try {
     await db.studentFee.create({ data: { feeTypeId, userId: member.userId, organizationId: fee.organizationId, title: fee.name, kind: fee.kind, amountDue: fee.amount, semesterId: fee.semesterId, eventId: fee.eventId } });
   } catch (e) {

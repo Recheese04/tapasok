@@ -4,7 +4,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOrg } from "../../src/org/OrgContext";
-import { hasTools } from "../../src/roles";
+import { canCheckIn, hasTools } from "../../src/roles";
 import { colors, elevation, fonts, radius, space } from "../../src/theme";
 
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>>[0];
@@ -27,7 +27,9 @@ const RIGHT = ["manage", "account"];
  */
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const tools = hasTools(useOrg().overview?.capabilities);
+  const { overview, orgs } = useOrg();
+  const tools = hasTools(overview?.capabilities);
+  const scanVisible = canCheckIn(orgs);
   const go = (name: string) => {
     const route = state.routes.find((r) => r.name === name);
     if (!route) return;
@@ -61,12 +63,12 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
       <View style={s.bar} accessibilityRole="tablist">
         <View style={s.barBg} />
         <View style={s.side}>{LEFT.map(tab)}</View>
-        <View style={s.centerSlot}>
+        {scanVisible ? <View style={s.centerSlot}>
           <Pressable onPress={() => go("scan")} accessibilityRole="tab" accessibilityLabel="Scan" accessibilityState={{ selected: scanOn }} style={[s.scan, { borderColor: scanOn ? colors.onDark : colors.bg }]}>
             <Ionicons name="scan" size={30} color={colors.navy900} />
           </Pressable>
           <Text style={[s.label, scanOn && s.labelOn]}>Scan</Text>
-        </View>
+        </View> : null}
         <View style={s.side}>{RIGHT.filter((n) => n !== "manage" || tools).map(tab)}</View>
       </View>
     </View>
@@ -74,12 +76,13 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
-  const tools = hasTools(useOrg().overview?.capabilities);
+  const { overview, orgs } = useOrg();
+  const tools = hasTools(overview?.capabilities);
   return (
     <Tabs tabBar={(p) => <TabBar {...p} />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="events" />
-      <Tabs.Screen name="scan" />
+      <Tabs.Screen name="scan" options={{ href: canCheckIn(orgs) ? undefined : null }} />
       <Tabs.Screen name="manage" options={{ href: tools ? undefined : null }} />
       <Tabs.Screen name="account" />
     </Tabs>

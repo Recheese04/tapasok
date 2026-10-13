@@ -25,6 +25,10 @@ automated test in `tests/` that runs against a real PostgreSQL database.
 - IDs in URLs are verified against the caller's memberships (other organizations' records return 404 / 403).
 - System administration (`users.manage` etc.) is separate from organization positions; no position grants it.
 - Organization, member, finance, payment and RFID routes are covered by permission tests for every position.
+- The Adviser is read-only everywhere: no capability that changes data (tested against every write action and mobile
+  endpoint, with a check that nothing was changed or logged in the Adviser's name).
+- Join requests are decided only by the President or Secretary of the request's own organization; nobody can decide their
+  own request.
 
 ## Input, files and output
 
@@ -60,7 +64,11 @@ document downloads, exports and administrative changes are written to `audit_log
 - An attacker who knows an email can lock that account for 15 minutes by failing 5 times (standard lockout trade-off).
 - `npm audit` reports issues in the Prisma **CLI** dependency tree (`mysql2`, `deepmerge-ts`), a development tool not
   used at runtime with PostgreSQL.
-- RFID terminals authenticate with a 192-bit device key; physical card cloning is outside the system's control.
+- RFID terminals authenticate with a 192-bit device key; physical card cloning is outside the system's control (UID-only
+  cards are a supervised prototype).
+- RFID card registration is System Admin only. A registration scan captures the UID for the admin to confirm and is never
+  counted as attendance; replacing a card or moving it from another student needs explicit confirmation; every start,
+  capture, cancel, registration, replacement, move and removal is audited. Profile edits cannot change a card.
 
 ## Organization funds (expenses and other money received)
 

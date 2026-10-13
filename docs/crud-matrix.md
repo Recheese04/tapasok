@@ -17,8 +17,8 @@ server action or query, not only in the UI. Roles are from `docs/permission-matr
 | Event sessions | With the event | Yes | With the event; open/close; revoke QR | With the event (draft only) | Finalizing marks absences and applies attached rules. |
 | Attendance | Check-in / manual entry (President, Secretary) | Own; org view for President, Secretary, Officer, Adviser | Correct / excuse with a reason (audited) | Restricted | Attendance is a legal-style record: corrected, never deleted. |
 | Obligations | Yes (President, Secretary, Officer — Org) | Own; org view incl. Adviser | **Yes** while open (managers); member submits progress | Cancel (keeps the record) | Never creates a consequence. |
-| Consequence rules | Yes (President, Adviser) | Yes | Restricted | Activate/Deactivate | Not editable so past consequences keep the meaning of the rule they used; create a new rule instead. |
-| Consequences | Manual record or via attached rule | Own; org view | Status: complete / waive (Adviser) | Restricted (Cancel via status) | History kept. |
+| Consequence rules | Yes (President) | Yes | Restricted | Activate/Deactivate | Not editable so past consequences keep the meaning of the rule they used; create a new rule instead. |
+| Consequences | Manual record or via attached rule | Own; org view | Status: complete / waive (President) | Restricted (Cancel via status) | History kept. |
 | Fee types | Yes (President, Treasurer — Org) | Yes | **Yes** (already-assessed members keep their amount) | **Yes only if never assessed**; else Deactivate | Auditor/Adviser can view. |
 | Assessments (student fees) | Assess all / one member | Own; org ledger | Adjust (waiver/discount/surcharge, audited) | Restricted | Ledger entries are never deleted. |
 | Payments | Record cash; members submit proof | Own; org list | Verify / reject | **Void** (kept in history) | President, Treasurer for management; submitter sees own proof. |

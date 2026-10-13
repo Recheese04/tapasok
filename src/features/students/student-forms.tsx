@@ -77,9 +77,17 @@ export function StudentForm({ student, ownProfile = false, tree = [] }: { studen
             <Field id="yearLevel" label="Year level" error={fe.yearLevel}>
               <input id="yearLevel" name="yearLevel" type="number" min={1} max={10} defaultValue={student?.yearLevel ?? ""} className={inputClass} />
             </Field>
-            <Field id="rfidUid" label="RFID card UID (optional)" error={fe.rfidUid} hint="Hexadecimal, as printed by the reader (for example 04A1B2C3).">
-              <input id="rfidUid" name="rfidUid" defaultValue={student?.rfidUid ?? ""} autoCapitalize="characters" className={`${inputClass} font-mono`} />
-            </Field>
+            {student?.userId ? (
+              <div className="flex flex-col gap-1 text-sm">
+                <span className="font-medium">RFID card</span>
+                <span className="font-mono text-muted">{student.rfidUid ?? "None"}</span>
+                <span className="text-xs text-muted">Change it in the RFID card section of the account page.</span>
+              </div>
+            ) : (
+              <Field id="rfidUid" label="RFID card UID (optional)" error={fe.rfidUid} hint="Hexadecimal, as printed by the reader (for example 04A1B2C3).">
+                <input id="rfidUid" name="rfidUid" defaultValue={student?.rfidUid ?? ""} autoCapitalize="characters" className={`${inputClass} font-mono`} />
+              </Field>
+            )}
           </>
         )}
       </div>

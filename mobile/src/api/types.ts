@@ -18,6 +18,13 @@ export type ScanSession = { id: string; label: string; kind: string; state: stri
 export type ScanResult = { ok: true; status: string; at: string } | { ok: false; reason: string; message: string };
 export type AttendanceRecord = { event: string; eventId: string; organization: string; session: string; status: string; at: string };
 export type Organization = { id: string; name: string; acronym: string | null; description: string | null; scope: string; memberCount: number; positions: { role: string; title: string | null }[] };
+export type JoinableOrg = { id: string; name: string; acronym: string | null; description: string | null };
+export type MyJoinRequest = { id: string; organization: string; status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"; message: string | null; note: string | null; createdAt: string; decidedAt: string | null };
+export type PendingJoinRequest = {
+  id: string; userId: string; name: string; email: string; studentNumber: string | null; yearLevel: number | null; program: string | null;
+  college: string | null; department: string | null; message: string | null; createdAt: string; rejectedBefore: number;
+};
+export type DecidedJoinRequest = { id: string; name: string; status: "APPROVED" | "REJECTED"; decidedAt: string | null; decidedBy: string | null; note: string | null };
 export type Payment = { id: string; amount: string; method: string; status: string; receiptCode: string; paidAt: string; rejectionReason: string | null };
 export type Fee = { id: string; title: string; kind: string; organization: string; dueDate: string | null; amountDue: string; adjustments: string; paid: string; pending: string; balance: string; status: string; payments: Payment[] };
 export type Notice = { id: string; kind: string; title: string; body: string | null; at: string; read: boolean };

@@ -7,18 +7,17 @@ import { canOrg, hasOrgRole, isSystemAdmin } from "@/lib/permissions";
 import { getOrganizationForViewer } from "@/features/organizations/queries";
 import { endMembershipAction, setOrganizationStatusAction, syncMembersAction } from "@/features/organizations/actions";
 import { missingAdviser } from "@/features/organizations/service";
-import { pendingRequests } from "@/features/organizations/requests";
-import { decideJoinRequestAction } from "@/features/organizations/request-actions";
+import { pendingRequests, recentDecisions } from "@/features/organizations/requests";
+import { JoinRequestReview } from "@/features/organizations/join-review";
 import { academicTree } from "@/features/academic/service";
 import { ROLE_LABEL } from "@/features/auth/roles";
-import { formatDateTime } from "@/lib/format";
 import { OrganizationForm } from "@/features/organizations/organization-form";
 import { AddMemberForm } from "@/features/organizations/add-member-form";
 import { ChangePositionButton } from "@/features/organizations/member-actions";
 import { EmptyState } from "@/components/shared/empty-state";
-import { ConfirmButton, RefreshOnSubmit } from "@/components/shared/confirm-button";
+import { ConfirmButton } from "@/components/shared/confirm-button";
 import { ModalButton } from "@/components/shared/modal";
-import { actionDanger, Badge, Card, Notice, Page, PageHeader, primaryButton, secondaryButton } from "@/components/shared/ui";
+import { actionDanger, Badge, Card, Notice, Page, PageHeader, secondaryButton } from "@/components/shared/ui";
 import { JoinCodeManager } from "@/features/organizations/join-code-manager";
 import { getLatestJoinCode, joinCodeStatus } from "@/features/organizations/join-codes";
 
@@ -42,7 +41,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
   const canManageMembers = org.status === "ACTIVE" && hasOrgRole(user, id, ["PRESIDENT"]);
   const latestCode = canManageMembers ? await getLatestJoinCode(id) : null;
   const canReview = org.status === "ACTIVE" && canOrg(user, "joinrequests.review", id);
-  const requests = canReview ? await pendingRequests(id) : [];
+  const [requests, decided] = canReview ? await Promise.all([pendingRequests(id), recentDecisions(id)]) : [[], []];
   const noAdviser = admin ? await missingAdviser(id) : false;
   const tree = admin ? await academicTree() : [];
   const assignable = (["MEMBER", "OFFICER", "SECRETARY", "TREASURER", "AUDITOR", ...(admin ? ["ADVISER", "PRESIDENT"] : [])] as OrganizationRole[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }));
@@ -163,24 +162,10 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
 
       {canReview && (
         <Card title={`Join requests (${requests.length})`}>
-          {requests.length === 0 ? <p className="text-sm text-muted">No pending requests.</p> : (
-            <ul className="flex flex-col divide-y divide-border">
-              {requests.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{r.user.firstName} {r.user.lastName} <span className="text-muted">{r.user.studentProfile?.studentNumber ?? ""}</span></p>
-                    <p className="text-xs text-muted">Requested {formatDateTime(r.createdAt)}{r.message ? ` · “${r.message}”` : ""}</p>
-                  </div>
-                  <form action={decideJoinRequestAction} className="flex flex-wrap items-center gap-2"><RefreshOnSubmit />
-                    <input type="hidden" name="requestId" value={r.id} />
-                    <input name="note" aria-label="Decision note (optional)" placeholder="Note (optional)" maxLength={300} className="rounded-xl border border-border bg-surface px-3 py-1.5 text-sm" />
-                    <button type="submit" name="decision" value="approve" className={primaryButton}>Approve</button>
-                    <button type="submit" name="decision" value="reject" className={actionDanger}>Reject</button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          )}
+          <JoinRequestReview
+            pending={requests.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))}
+            decided={decided.map((d) => ({ ...d, decidedAt: d.decidedAt?.toISOString() ?? null }))}
+          />
         </Card>
       )}
     </Page>

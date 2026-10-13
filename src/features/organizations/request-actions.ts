@@ -24,13 +24,18 @@ export async function cancelJoinRequestAction(fd: FormData) {
   if (id.success) await cancelJoinRequest(user.id, id.data);
 }
 
-/** Reviewer authority comes from the request's own organization, never from the form. */
-export async function decideJoinRequestAction(fd: FormData) {
+/**
+ * Approve or reject. Reviewer authority (joinrequests.review: President, Secretary) comes from the request's own
+ * organization, never from the form, so a reviewer in one organization cannot decide another organization's requests.
+ */
+export async function decideJoinRequestAction(fd: FormData): Promise<RequestState> {
   const id = z.uuid().safeParse(fd.get("requestId"));
-  if (!id.success) return;
+  const decision = z.enum(["approve", "reject"]).safeParse(fd.get("decision"));
+  if (!id.success || !decision.success) return { error: "Invalid request." };
   const req = await db.joinRequest.findUnique({ where: { id: id.data }, select: { organizationId: true } });
-  if (!req) return;
+  if (!req) return { error: "Request not found." };
   const reviewer = await assertOrgPermission("joinrequests.review", req.organizationId);
   const note = (fd.get("note") ?? "").toString().trim().slice(0, 300) || null;
-  await decideJoinRequest(reviewer.id, id.data, fd.get("decision") === "approve", note);
+  const res = await decideJoinRequest(reviewer.id, id.data, decision.data === "approve", note);
+  return res.ok ? { success: decision.data === "approve" ? "Approved. The student is now a member." : "Rejected. The student has been notified." } : { error: res.error };
 }

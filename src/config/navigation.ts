@@ -21,6 +21,9 @@ export const SECTION_HEADING: Record<NavSection, string | null> = {
 const admin = (u: PolicyUser) => isSystemAdminUser(u);
 const orgUser = (u: PolicyUser) => !isSystemAdminUser(u); // organization modules are not shown to System Admin
 const anyOrg = (u: PolicyUser) => orgUser(u) && u.memberships.length > 0;
+// Checking in is for attendees. The Adviser is read-only and never an attendee, so an Adviser-only account has no Scan link
+// (the server refuses an adviser's check-in regardless).
+const attendee = (u: PolicyUser) => orgUser(u) && u.memberships.some((m) => m.role !== "ADVISER");
 const orgPerm = (p: OrgPermission) => (u: PolicyUser) => orgUser(u) && canOrgAnywhere(u, p);
 const anyPerm = (...ps: OrgPermission[]) => (u: PolicyUser) => ps.some((p) => orgPerm(p)(u));
 
@@ -50,7 +53,7 @@ const RULES: Rule[] = [
   { label: "Fees & Payments", href: "/fees/manage", also: ["/fees/expenses", "/fees/report", "/fees/audit"], section: "manage", visible: orgPerm("fees.view_org") },
 
   { label: "Events", href: "/events", section: "account", visible: anyOrg },
-  { label: "Scan Attendance QR", href: "/attendance/scan", section: "account", visible: anyOrg },
+  { label: "Scan Attendance QR", href: "/attendance/scan", section: "account", visible: attendee },
   { label: "My Attendance", href: "/attendance", section: "account", visible: anyOrg },
   { label: "My Obligations", href: "/obligations", section: "account", visible: anyOrg },
   { label: "My Consequences", href: "/consequences", section: "account", visible: anyOrg },

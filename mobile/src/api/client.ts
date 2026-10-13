@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import type { OrgExpenses, MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
+import type { DecidedJoinRequest, JoinableOrg, MyJoinRequest, PendingJoinRequest, OrgExpenses, MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
 
 const BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 const TOKEN_KEY = "tapasok_token";
@@ -62,6 +62,9 @@ export const api = {
   attendance: () => get<{ records: AttendanceRecord[] }>("/attendance"),
   organizations: () => get<{ organizations: Organization[] }>("/organizations"),
   fees: () => get<{ fees: Fee[] }>("/fees"),
+  joinOptions: () => get<{ organizations: JoinableOrg[]; requests: MyJoinRequest[] }>("/join"),
+  requestToJoin: (organizationId: string, message?: string) => request<{ ok: true }>("POST", "/join", { organizationId, message }),
+  cancelJoinRequest: (id: string) => request<{ ok: true }>("POST", `/join/${id}`, {}),
   notifications: () => get<{ notifications: Notice[] }>("/notifications"),
   markAllRead: () => request<{ ok: true }>("POST", "/notifications", { action: "read_all" }),
   announcements: () => get<{ announcements: Announcement[] }>("/announcements"),
@@ -80,6 +83,8 @@ export const api = {
   setEventStatus: (orgId: string, id: string, status: "DRAFT" | "PUBLISHED" | "CANCELLED") => request<{ ok: true }>("POST", `/org/${orgId}/events/${id}/status`, { status }),
   setSessionActive: (orgId: string, eventId: string, sessionId: string, active: boolean) => request<{ ok: true }>("POST", `/org/${orgId}/events/${eventId}/sessions/${sessionId}`, { active }),
   orgMembers: (orgId: string) => get<{ members: OrgMember[] }>(`/org/${orgId}/members`),
+  orgJoinRequests: (orgId: string) => get<{ pending: PendingJoinRequest[]; decided: DecidedJoinRequest[] }>(`/org/${orgId}/join-requests`),
+  decideJoinRequest: (orgId: string, id: string, decision: "approve" | "reject", note?: string) => request<{ ok: true }>("POST", `/org/${orgId}/join-requests/${id}`, { decision, note }),
   orgMember: (orgId: string, userId: string) => get<MemberDetail>(`/org/${orgId}/members/${userId}`),
   orgExpenses: (orgId: string, status?: "PENDING" | "APPROVED") => get<OrgExpenses>(`/org/${orgId}/expenses${status ? `?status=${status}` : ""}`),
   recordExpense: (orgId: string, e: { type: "EXPENSE" | "INCOME"; title: string; amount: string; category: string; occurredOn: string; purpose: string; notes?: string; requestId: string }) =>

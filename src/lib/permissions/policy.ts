@@ -3,6 +3,7 @@
 // code always checks the capability, never a position's display name.
 // Organization roles apply only inside the organization where they are held, and System Admin is a
 // separate system-level flag with NO implicit access to organization modules.
+// The Adviser is strictly READ-ONLY: it appears only in viewing and report capabilities, never in one that changes data.
 import type { OrganizationRole, SystemRole } from "@/generated/prisma/enums";
 
 export type PolicyUser = {
@@ -34,15 +35,15 @@ export const ORG_POLICY = {
   "events.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "attendance.scan": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "attendance.manual": ["PRESIDENT", "SECRETARY"], // manual entry, corrections, finalizing sessions
-  "attendance.excuse": ["PRESIDENT", "SECRETARY", "ADVISER"],
+  "attendance.excuse": ["PRESIDENT", "SECRETARY"],
   "devices.manage": ["PRESIDENT", "SECRETARY"],
   // Announcements and records
   "announcements.manage": ["PRESIDENT", "SECRETARY"],
   "documents.manage": ["PRESIDENT", "SECRETARY"],
   // Obligations, consequences, evaluations, finance
   "obligations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"], // assign, verify completion, cancel
-  "consequences.manage": ["PRESIDENT", "ADVISER"], // configure rules, review, correct
-  "consequences.waive": ["ADVISER"],
+  "consequences.manage": ["PRESIDENT"], // configure rules, review, correct
+  "consequences.waive": ["PRESIDENT"],
   "evaluations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "fees.manage": ["PRESIDENT", "TREASURER"], // create fees, assess, record cash, verify digital payments, adjust, void
   // Organization funds (expenses and other money received). Independent approval: the Treasurer records, the President
@@ -55,6 +56,13 @@ export const ORG_POLICY = {
   "reports.consequences": ["PRESIDENT", "ADVISER"],
   "reports.finance": ["PRESIDENT", "TREASURER", "AUDITOR", "ADVISER"],
 } as const satisfies Record<string, readonly OrganizationRole[]>;
+
+/** Capabilities that only read. Every other capability changes data and must never include the Adviser (enforced by tests). */
+export const READ_ONLY_CAPABILITIES = [
+  "org.view", "members.roster", "members.basic", "events.view", "announcements.view", "documents.view", "attendance.view_org",
+  "obligations.view_org", "consequences.view_org", "evaluations.results", "fees.view_org", "documents.audit",
+  "reports.attendance", "reports.consequences", "reports.finance",
+] as const satisfies readonly (keyof typeof ORG_POLICY)[];
 
 export type OrgPermission = keyof typeof ORG_POLICY;
 

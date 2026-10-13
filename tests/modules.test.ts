@@ -96,11 +96,11 @@ describe("documents", () => {
 });
 
 describe("consequences", () => {
-  it("president/adviser manage; only the adviser waives; members see only their own", async () => {
+  it("only the president manages and waives (the adviser is read-only); members see only their own", async () => {
     const w = await makeWorld();
     const mk = (over: Record<string, string> = {}) => form({ organizationId: w.orgA.id, userId: w.a.MEMBER.id, ruleId: "", eventId: "", reason: "Absent from assembly", ...over });
 
-    for (const r of ["TREASURER", "OFFICER", "MEMBER"] as const) {
+    for (const r of ["TREASURER", "OFFICER", "MEMBER", "ADVISER"] as const) {
       await signInAs(w.a[r].id);
       await expect(createConsequenceAction({}, mk())).rejects.toBeInstanceOf(ForbiddenError);
       await expect(createRuleAction({}, form({ organizationId: w.orgA.id, name: "Rule" }))).rejects.toBeInstanceOf(ForbiddenError);
@@ -121,13 +121,14 @@ describe("consequences", () => {
     expect((await createConsequenceAction({}, mk({ ruleId: bRule.id }))).error).toMatch(/rule/i);
 
     const c = await db.consequence.findFirstOrThrow();
-    await updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "nice" })).catch((e) => expect(e).toBeInstanceOf(ForbiddenError));
+    await signInAs(w.a.ADVISER.id);
+    await expect(updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "nice" }))).rejects.toBeInstanceOf(ForbiddenError);
     expect((await db.consequence.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("PENDING");
 
-    await signInAs(w.a.ADVISER.id);
+    await signInAs(w.a.PRESIDENT.id);
     await updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "Medical reason" }));
     const done = await db.consequence.findUniqueOrThrow({ where: { id: c.id } });
-    expect(done).toMatchObject({ status: "WAIVED", note: "Medical reason", resolvedById: w.a.ADVISER.id });
+    expect(done).toMatchObject({ status: "WAIVED", note: "Medical reason", resolvedById: w.a.PRESIDENT.id });
     // finished records are immutable
     await signInAs(w.a.PRESIDENT.id);
     await updateConsequenceStatusAction(form({ consequenceId: c.id, status: "COMPLETED", note: "" }));
@@ -229,7 +230,7 @@ describe("fees and payments", () => {
     const fee = await db.feeType.findFirstOrThrow();
     await assignFeeAction(form({ feeTypeId: fee.id }));
     await assignFeeAction(form({ feeTypeId: fee.id }));
-    expect(await db.studentFee.count()).toBe(7); // all seven members of A, once each
+    expect(await db.studentFee.count()).toBe(6); // the six members of A other than the (read-only) Adviser, once each
     expect(await db.studentFee.count({ where: { userId: w.memberB.id } })).toBe(0);
 
     await signInAs(w.presidentB.id);

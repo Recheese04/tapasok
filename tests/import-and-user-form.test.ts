@@ -185,9 +185,10 @@ describe("User form: every field saves, reopens, validates and is permission-che
     }));
     expect(edited).toEqual({ success: "Saved." });
     full = (await getUserForAdmin(id))!;
+    // the card is not changed by the profile form (it has its own section with confirmation and audit)
     expect(userFormValues(full)).toMatchObject({
       firstName: "Mariana", lastName: "Santos-Reyes", middleName: null, email: "mariana@x.test", studentNumber: "2026-2222", yearLevel: 3,
-      contactNumber: "09181234567", rfidUid: "04FFEE11", programId: other.id, streetAddress: "99 Mabini Ave",
+      contactNumber: "09181234567", rfidUid: "04A1B2C3", programId: other.id, streetAddress: "99 Mabini Ave",
     });
     // history stays intact: the account is the same row, still a student, still no privileges
     expect(full).toMatchObject({ id, systemRole: "USER", status: "INVITED" });

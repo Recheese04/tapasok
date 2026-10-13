@@ -89,8 +89,8 @@ describe("automatic consequences", () => {
 
     const rec = await db.attendanceRecord.findFirstOrThrow({ where: { userId: w.a.TREASURER.id } });
     const president = await auth(w.a.PRESIDENT.id);
-    const adviser = await auth(w.a.ADVISER.id);
-    await adjustAttendance(adviser, rec.id, "EXCUSED", "Medical certificate");
+    const secretary = await auth(w.a.SECRETARY.id);
+    await adjustAttendance(secretary, rec.id, "EXCUSED", "Medical certificate");
     const cancelled = await db.consequence.findFirstOrThrow({ where: { userId: w.a.TREASURER.id }, include: { assessment: { include: { adjustments: true } } } });
     expect(cancelled.status).toBe("CANCELLED");
     expect((await balanceOf(w.a.TREASURER.id)).toString()).toBe("0");
@@ -151,13 +151,16 @@ describe("automatic consequences", () => {
     expect((await db.consequence.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("PENDING");
   });
 
-  it("an adviser's waiver also clears the unpaid fine; presidents cannot waive", async () => {
+  it("a president's waiver also clears the unpaid fine; the read-only adviser and other positions cannot waive", async () => {
     const { w, ev } = await absentScenario();
     await finalizeSession(await auth(w.a.PRESIDENT.id), ev.session.id);
     const c = await db.consequence.findFirstOrThrow({ where: { userId: w.a.TREASURER.id } });
+    for (const id of [w.a.ADVISER.id, w.a.SECRETARY.id, w.a.TREASURER.id, w.presidentB.id]) {
+      await signInAs(id);
+      await expect(updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "x" }))).rejects.toBeInstanceOf(ForbiddenError);
+    }
+    expect((await db.consequence.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("PENDING");
     await signInAs(w.a.PRESIDENT.id);
-    await expect(updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "x" }))).rejects.toBeInstanceOf(ForbiddenError);
-    await signInAs(w.a.ADVISER.id);
     await updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "Hardship" }));
     expect((await db.consequence.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("WAIVED");
     expect((await balanceOf(w.a.TREASURER.id)).toString()).toBe("0");
@@ -166,7 +169,7 @@ describe("automatic consequences", () => {
 
   it("rule configuration and manual consequences copy the rule's penalty and need the right authority", async () => {
     const w = await makeWorld();
-    for (const id of [w.a.TREASURER.id, w.a.SECRETARY.id, w.a.OFFICER.id, w.a.MEMBER.id, w.presidentB.id, w.admin.id]) {
+    for (const id of [w.a.TREASURER.id, w.a.SECRETARY.id, w.a.OFFICER.id, w.a.MEMBER.id, w.a.ADVISER.id, w.presidentB.id, w.admin.id]) {
       await signInAs(id);
       await expect(createRuleAction({}, form({ organizationId: w.orgA.id, name: "Rule", fineAmount: "50" }))).rejects.toBeInstanceOf(ForbiddenError);
     }
@@ -204,7 +207,8 @@ describe("fees, payments and the ledger", () => {
     await createFeeTypeAction({}, form({ organizationId: w.orgA.id, name: "Special", amount: "30", kind: "SPECIAL" }));
     const [dues, shirt, special] = await Promise.all(["Dues", "Shirt", "Special"].map((name) => db.feeType.findFirstOrThrow({ where: { name } })));
     await assignFeeAction(form({ feeTypeId: dues.id })); await assignFeeAction(form({ feeTypeId: shirt.id }));
-    expect(await db.studentFee.count({ where: { feeTypeId: dues.id } })).toBe(7);
+    expect(await db.studentFee.count({ where: { feeTypeId: dues.id } })).toBe(6); // every active member except the Adviser (read-only, not assessed)
+    expect(await db.studentFee.count({ where: { feeTypeId: dues.id, userId: w.a.ADVISER.id } })).toBe(0);
     expect(await db.studentFee.count({ where: { feeTypeId: shirt.id } })).toBe(0);
 
     await db.studentProfile.create({ data: { userId: w.a.MEMBER.id, studentNumber: "2024-7777" } });
