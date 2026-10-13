@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth/dal";
 import { canOrgAnywhere, canSystem } from "@/lib/permissions";
 import { formatDateTime, formatPeso } from "@/lib/format";
 import { adminDashboard, memberDashboard } from "@/features/dashboard/queries";
+import { isAdviserOnly } from "@/config/navigation";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
 // request, so it cannot be prerendered or shared. The layout and loading.tsx stream the frame and a skeleton while it
@@ -66,15 +67,18 @@ export default async function DashboardPage() {
   const d = await memberDashboard(user);
   const a = d.attendanceByStatus;
   const attendanceTotal = a.PRESENT + a.LATE + a.ABSENT + a.EXCUSED;
+  // An Adviser-only account oversees organizations (read-only) and has no personal attendance, fees or obligations.
+  const adviser = isAdviserOnly(user);
   const showMgmt = d.members !== null || d.pendingOrg !== null || d.orgOutstanding !== null || d.scansToday !== null || d.openObligationsOrg !== null;
 
   return (
     <Page>
       <PageHeader
         title={greeting}
-        subtitle="Your activities and, where you hold a position, your organizations' numbers."
+        subtitle={adviser ? "Your organizations at a glance (read-only oversight)." : "Your activities and, where you hold a position, your organizations' numbers."}
         actions={
           user.memberships.length === 0 ? <ButtonLink href="/organizations">+ Join an organization</ButtonLink>
+          : adviser ? undefined
           : <>
               <ButtonLink href="/attendance/scan">Scan attendance QR</ButtonLink>
               {canOrgAnywhere(user, "events.manage") && <ButtonLink href="/events/new" variant="secondary">+ Create event</ButtonLink>}
@@ -85,12 +89,12 @@ export default async function DashboardPage() {
         <EmptyState title="You are not in an organization yet" hint="Open My Organizations and enter a join code from an organization officer to get started." />
       ) : (
         <>
-          <section aria-label="My summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {!adviser && <section aria-label="My summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Upcoming events" value={d.upcoming.length} href="/events" icon={<Icon name="calendar" />} />
             <StatCard label="Events attended" value={d.attended} href="/attendance" icon={<Icon name="check" />} tone="green" />
             <StatCard label="Pending obligations" value={d.myOpenObligations.length} href="/obligations" icon={<Icon name="task" />} tone="amber" />
             <StatCard label="Balance due" value={formatPeso(d.outstanding.toString())} href="/fees" icon={<Icon name="wallet" />} tone={d.outstanding.isZero() ? "green" : "red"} />
-          </section>
+          </section>}
 
           {showMgmt && (
             <section aria-label="Organization management" className="flex flex-col gap-3">
@@ -126,8 +130,8 @@ export default async function DashboardPage() {
             </section>
           )}
 
-          <section className="grid gap-4 lg:grid-cols-3">
-            <Card title="My attendance" action={<Link href="/attendance" className="text-sm font-medium text-primary hover:underline">View all</Link>}>
+          <section className={`grid gap-4 ${adviser ? "" : "lg:grid-cols-3"}`}>
+            {!adviser && <Card title="My attendance" action={<Link href="/attendance" className="text-sm font-medium text-primary hover:underline">View all</Link>}>
               {attendanceTotal === 0 ? <EmptyState title="No attendance recorded yet" hint="Scan an event's QR code to check in." /> : (
                 <DonutChart
                   centerLabel="records"
@@ -139,7 +143,7 @@ export default async function DashboardPage() {
                   ]}
                 />
               )}
-            </Card>
+            </Card>}
             <Card title="Upcoming events" action={<Link href="/events" className="text-sm font-medium text-primary hover:underline">All events</Link>}>
               {d.upcoming.length === 0 ? <EmptyState title="No upcoming events" /> : (
                 <ul className="flex flex-col gap-3 text-sm">
@@ -152,7 +156,7 @@ export default async function DashboardPage() {
                 </ul>
               )}
             </Card>
-            <Card title="My open obligations" action={<Link href="/obligations" className="text-sm font-medium text-primary hover:underline">View all</Link>}>
+            {!adviser && <Card title="My open obligations" action={<Link href="/obligations" className="text-sm font-medium text-primary hover:underline">View all</Link>}>
               {d.myOpenObligations.length === 0 ? <EmptyState title="Nothing pending" /> : (
                 <ul className="flex flex-col gap-3 text-sm">
                   {d.myOpenObligations.map((o) => (
@@ -163,11 +167,11 @@ export default async function DashboardPage() {
                   ))}
                 </ul>
               )}
-            </Card>
+            </Card>}
           </section>
 
           <section className="grid gap-4 lg:grid-cols-3">
-            <Card title="Latest announcements" className="lg:col-span-2" action={<Link href="/announcements" className="text-sm font-medium text-primary hover:underline">All announcements</Link>}>
+            <Card title="Latest announcements" className={adviser ? "lg:col-span-3" : "lg:col-span-2"} action={<Link href="/announcements" className="text-sm font-medium text-primary hover:underline">All announcements</Link>}>
               {d.announcements.length === 0 ? <EmptyState title="No announcements yet" /> : (
                 <ul className="flex flex-col gap-3 text-sm">
                   {d.announcements.map((n) => (
@@ -179,12 +183,12 @@ export default async function DashboardPage() {
                 </ul>
               )}
             </Card>
-            <Card title="Needs your attention">
+            {!adviser && <Card title="Needs your attention">
               <ul className="flex flex-col gap-2 text-sm">
                 <li><Link className="text-primary hover:underline" href="/consequences">My pending consequences</Link>: <strong>{d.pendingMine}</strong></li>
                 <li><Link className="text-primary hover:underline" href="/evaluations">Evaluations to complete</Link>: <strong>{d.openEvals}</strong></li>
               </ul>
-            </Card>
+            </Card>}
           </section>
         </>
       )}

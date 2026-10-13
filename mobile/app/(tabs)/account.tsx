@@ -4,7 +4,7 @@ import { useAuth } from "../../src/auth/AuthContext";
 import { useConfirm } from "../../src/components/kit";
 import { Avatar, Badge, Body, Card, ListGroup, ListItem, ScreenHeader, SectionTitle, Txt } from "../../src/components/ui";
 import { roleLabel } from "../../src/format";
-import { organizationsOf } from "../../src/roles";
+import { hasPersonalFeatures, organizationsOf } from "../../src/roles";
 import { colors, space } from "../../src/theme";
 
 export default function Account() {
@@ -53,8 +53,10 @@ export default function Account() {
         <SectionTitle>Personal</SectionTitle>
         <ListGroup>
           <ListItem icon="person" tone="primary" title="Profile" subtitle="Contact details" onPress={() => router.push("/profile")} />
-          <ListItem icon="wallet" tone="accent" title="My fees and payments" subtitle="What you owe and what you paid" onPress={() => router.push("/fees")} />
-          <ListItem icon="people" tone="violet" title="My organizations" subtitle={`${orgs.length} organization${orgs.length === 1 ? "" : "s"}`} onPress={() => router.push("/organizations")} />
+          {hasPersonalFeatures(orgs) ? <>
+            <ListItem icon="wallet" tone="accent" title="My fees and payments" subtitle="What you owe and what you paid" onPress={() => router.push("/fees")} />
+            <ListItem icon="people" tone="violet" title="My organizations" subtitle={`${orgs.length} organization${orgs.length === 1 ? "" : "s"}`} onPress={() => router.push("/organizations")} />
+          </> : null}
         </ListGroup>
 
         <SectionTitle>Updates</SectionTitle>

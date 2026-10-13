@@ -29,6 +29,9 @@ export function organizationsOf(memberships: Membership[]): OrgRef[] {
  */
 export const canCheckIn = (orgs: OrgRef[]) => orgs.length === 0 || orgs.some((o) => o.roles.some((r) => r.role !== "ADVISER"));
 
+/** Personal member features (own attendance, fees, joining organizations) are hidden for an Adviser-only account. */
+export const hasPersonalFeatures = canCheckIn;
+
 /** True when the position gives access to anything beyond the standard member features. Mirrors the server's capability table. */
 export const hasTools = (caps: Caps | undefined) => !!caps && Object.values(caps).some(Boolean);
 

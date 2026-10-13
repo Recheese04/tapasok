@@ -21,9 +21,12 @@ export const SECTION_HEADING: Record<NavSection, string | null> = {
 const admin = (u: PolicyUser) => isSystemAdminUser(u);
 const orgUser = (u: PolicyUser) => !isSystemAdminUser(u); // organization modules are not shown to System Admin
 const anyOrg = (u: PolicyUser) => orgUser(u) && u.memberships.length > 0;
-// Checking in is for attendees. The Adviser is read-only and never an attendee, so an Adviser-only account has no Scan link
-// (the server refuses an adviser's check-in regardless).
+// Personal member features (checking in, own attendance, obligations, consequences, fees) are for attendees. The Adviser is
+// read-only and never an attendee, so an account whose only positions are Adviser does not get them (the server refuses an
+// adviser's check-in regardless). Someone with no organization yet keeps My Organizations, to join one.
+export const isAdviserOnly = (u: PolicyUser) => u.memberships.length > 0 && u.memberships.every((m) => m.role === "ADVISER");
 const attendee = (u: PolicyUser) => orgUser(u) && u.memberships.some((m) => m.role !== "ADVISER");
+const personal = (u: PolicyUser) => orgUser(u) && !isAdviserOnly(u);
 const orgPerm = (p: OrgPermission) => (u: PolicyUser) => orgUser(u) && canOrgAnywhere(u, p);
 const anyPerm = (...ps: OrgPermission[]) => (u: PolicyUser) => ps.some((p) => orgPerm(p)(u));
 
@@ -54,11 +57,11 @@ const RULES: Rule[] = [
 
   { label: "Events", href: "/events", section: "account", visible: anyOrg },
   { label: "Scan Attendance QR", href: "/attendance/scan", section: "account", visible: attendee },
-  { label: "My Attendance", href: "/attendance", section: "account", visible: anyOrg },
-  { label: "My Obligations", href: "/obligations", section: "account", visible: anyOrg },
-  { label: "My Consequences", href: "/consequences", section: "account", visible: anyOrg },
-  { label: "My Fees & Payments", href: "/fees", section: "account", visible: anyOrg },
-  { label: "My Organizations", href: "/organizations", section: "account", visible: orgUser },
+  { label: "My Attendance", href: "/attendance", section: "account", visible: attendee },
+  { label: "My Obligations", href: "/obligations", section: "account", visible: attendee },
+  { label: "My Consequences", href: "/consequences", section: "account", visible: attendee },
+  { label: "My Fees & Payments", href: "/fees", section: "account", visible: attendee },
+  { label: "My Organizations", href: "/organizations", section: "account", visible: personal },
   { label: "Profile & Settings", href: "/settings", section: "account", visible: () => true },
 
   { label: "Announcements", href: "/announcements", section: "other", visible: anyOrg },

@@ -299,6 +299,43 @@ describe("the Adviser is strictly read-only", () => {
   });
 });
 
+describe("an Adviser-only account has no personal member features", () => {
+  it("sidebar: no check-in, own attendance, obligations, consequences, fees or My Organizations; others keep them", async () => {
+    const w = await makeWorld();
+    const personal = ["/attendance/scan", "/attendance", "/obligations", "/consequences", "/fees", "/organizations"];
+    const links = async (id: string) => navItemsFor(await auth(id)).map((i) => i.href);
+    const adviser = await links(w.a.ADVISER.id);
+    for (const h of personal) expect(adviser, h).not.toContain(h);
+    expect(adviser).toEqual(expect.arrayContaining(["/dashboard", "/events", "/attendance/records", "/fees/manage", "/organizations/manage", "/settings", "/announcements"]));
+    for (const id of [w.a.MEMBER.id, w.a.OFFICER.id, w.a.TREASURER.id]) expect(await links(id)).toEqual(expect.arrayContaining(personal));
+    expect(await links(w.nobody.id)).toContain("/organizations"); // no organization yet: can still join one
+    await addMembership(w.a.ADVISER.id, w.orgB.id, "MEMBER"); // adviser in A, member in B: a member again
+    expect(await links(w.a.ADVISER.id)).toEqual(expect.arrayContaining(personal));
+  });
+
+  it("dashboard renders without the personal sections", async () => {
+    const w = await makeWorld();
+    const { default: Dashboard } = await import("@/app/(dashboard)/dashboard/page");
+    await signInAs(w.a.ADVISER.id);
+    // every text and label in the rendered element tree
+    const texts = (node: unknown, out: string[] = [], seen = new WeakSet<object>()): string[] => {
+      if (typeof node === "string" || typeof node === "number") out.push(String(node));
+      else if (Array.isArray(node)) node.forEach((n) => texts(n, out, seen));
+      else if (node && typeof node === "object" && !seen.has(node)) {
+        seen.add(node);
+        const props = (node as { props?: Record<string, unknown> }).props;
+        if (props) for (const k of ["children", "title", "label", "subtitle", "actions"]) texts(props[k], out, seen);
+      }
+      return out;
+    };
+    const adviserText = texts(await Dashboard()).join(" | ");
+    expect(adviserText).not.toMatch(/Balance due|Events attended|My attendance|My open obligations|Scan attendance QR/);
+    expect(adviserText).toMatch(/read-only oversight/);
+    await signInAs(w.a.MEMBER.id);
+    expect(texts(await Dashboard()).join(" | ")).toMatch(/Balance due/);
+  });
+});
+
 describe("the rest of the role matrix is unchanged", () => {
   it("keeps device management with the President and Secretary, scanning with the officers, and finance roles apart", async () => {
     const w = await makeWorld();

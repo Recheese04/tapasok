@@ -10,7 +10,7 @@ import {
 } from "../../src/components/ui";
 import { ago, dayLabel, fmtTimeRange, greeting, peso } from "../../src/format";
 import { useOrg } from "../../src/org/OrgContext";
-import { hasTools } from "../../src/roles";
+import { hasPersonalFeatures, hasTools, organizationsOf } from "../../src/roles";
 import { colors, radius, space } from "../../src/theme";
 import { useLoad } from "../../src/useLoad";
 
@@ -40,6 +40,7 @@ export default function Home() {
   const next = data.nextEvents[0];
   const owes = Number(data.balanceDue) > 0;
   const tools = hasTools(overview?.capabilities);
+  const personal = hasPersonalFeatures(organizationsOf(me?.memberships ?? []));
   const a = data.attendance;
   const attended = a.PRESENT + a.LATE;
   const totalAtt = a.PRESENT + a.LATE + a.ABSENT + a.EXCUSED;
@@ -74,7 +75,7 @@ export default function Home() {
         ) : tools && overview ? <OfficerSection overview={overview} /> : null}
 
         {/* the standard member experience, always present */}
-        <SectionTitle caption={tools ? "Your own events, attendance and payments" : undefined} action={next ? "All events" : undefined} onAction={() => router.navigate("/events")}>{tools ? "For you" : "Up next"}</SectionTitle>
+        <SectionTitle caption={tools && personal ? "Your own events, attendance and payments" : undefined} action={next ? "All events" : undefined} onAction={() => router.navigate("/events")}>{tools && personal ? "For you" : "Up next"}</SectionTitle>
         {next ? (
           <Card onPress={() => router.push(`/event/${next.id}`)} accessibilityLabel={`Next event ${next.title}, ${dayLabel(next.startsAt)}`} style={{ flexDirection: "row", gap: space.md, alignItems: "center" }}>
             <DateBlock iso={next.startsAt} tone="accent" />
@@ -91,6 +92,8 @@ export default function Home() {
           <Card><Empty icon="calendar-clear-outline" title="No upcoming events" text="Events from your organizations will show up here." /></Card>
         )}
 
+        {/* Personal attendance and fees: not for an Adviser-only account (read-only oversight, never an attendee). */}
+        {personal ? <>
         <Card style={{ gap: space.md }}>
           <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
             <View>
@@ -113,6 +116,8 @@ export default function Home() {
           {!owes ? <ListItem icon="wallet" tone="success" title="My fees and payments" subtitle="All paid up" onPress={() => router.push("/fees")} /> : null}
           <ListItem icon="people" tone="violet" title="My organizations" subtitle={orgCount === 1 ? "1 organization" : `${orgCount} organizations`} onPress={() => router.push("/organizations")} />
         </ListGroup>
+
+        </> : null}
 
         <SectionTitle action={data.announcements.length ? "See all" : undefined} onAction={() => router.push("/announcements")}>Announcements</SectionTitle>
         {data.announcements.length === 0 ? (

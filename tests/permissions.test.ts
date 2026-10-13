@@ -132,13 +132,15 @@ describe("navigation per role", () => {
     expect(await inSection(w.a.ADVISER.id, "manage")).toEqual(expect.arrayContaining(["Manage Obligations", "Attendance Records"]));
   });
 
-  it("organization-wide Fees & Payments is for finance positions only; everyone keeps My Fees & Payments", async () => {
+  it("organization-wide Fees & Payments is for finance positions only; every attendee keeps My Fees & Payments", async () => {
     const w = await makeWorld();
     for (const r of ["PRESIDENT", "TREASURER"] as const) expect(await inSection(w.a[r].id, "manage"), r).toContain("Fees & Payments");
     expect(await inSection(w.a.OFFICER.id, "manage")).not.toContain("Fees & Payments");
     expect(await inSection(w.a.SECRETARY.id, "manage")).not.toContain("Fees & Payments");
     expect(await inSection(w.a.MEMBER.id, "manage")).not.toContain("Fees & Payments");
-    for (const r of ROLES) expect(await inSection(w.a[r].id, "account"), r).toContain("My Fees & Payments");
+    // the Adviser (read-only, not an attendee, not assessed fees) has no personal fees page
+    for (const r of ROLES.filter((x) => x !== "ADVISER")) expect(await inSection(w.a[r].id, "account"), r).toContain("My Fees & Payments");
+    expect(await inSection(w.a.ADVISER.id, "account")).not.toContain("My Fees & Payments");
   });
 
   it("an officer in one organization who is only a member in another has both, scoped per organization", async () => {
