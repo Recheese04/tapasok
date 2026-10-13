@@ -8,8 +8,6 @@ import { DESIGNATABLE_ROLES } from "@/lib/permissions/policy";
 import { getOrganizationForViewer } from "@/features/organizations/queries";
 import { endMembershipAction, setOrganizationStatusAction, syncMembersAction } from "@/features/organizations/actions";
 import { missingAdviser } from "@/features/organizations/service";
-import { pendingRequests, recentDecisions } from "@/features/organizations/requests";
-import { JoinRequestReview } from "@/features/organizations/join-review";
 import { academicTree } from "@/features/academic/service";
 import { ROLE_LABEL } from "@/features/auth/roles";
 import { OrganizationForm } from "@/features/organizations/organization-form";
@@ -18,7 +16,7 @@ import { ChangePositionButton } from "@/features/organizations/member-actions";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmButton } from "@/components/shared/confirm-button";
 import { ModalButton } from "@/components/shared/modal";
-import { actionDanger, Badge, Card, Notice, Page, PageHeader, secondaryButton } from "@/components/shared/ui";
+import { actionDanger, Badge, Notice, Page, PageHeader, secondaryButton } from "@/components/shared/ui";
 import { JoinCodeManager } from "@/features/organizations/join-code-manager";
 import { getLatestJoinCode, joinCodeStatus } from "@/features/organizations/join-codes";
 
@@ -44,8 +42,6 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
   const canDesignate = !canManageMembers && org.status === "ACTIVE" && canOrg(user, "officers.designate", id);
   const designatable = DESIGNATABLE_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }));
   const latestCode = canManageMembers ? await getLatestJoinCode(id) : null;
-  const canReview = org.status === "ACTIVE" && canOrg(user, "joinrequests.review", id);
-  const [requests, decided] = canReview ? await Promise.all([pendingRequests(id), recentDecisions(id)]) : [[], []];
   const noAdviser = admin ? await missingAdviser(id) : false;
   const tree = admin ? await academicTree() : [];
   const assignable = (["MEMBER", "OFFICER", "SECRETARY", "TREASURER", "AUDITOR", ...(admin ? ["ADVISER", "PRESIDENT"] : [])] as OrganizationRole[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }));
@@ -173,14 +169,6 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
         </section>
       )}
 
-      {canReview && (
-        <Card title={`Join requests (${requests.length})`}>
-          <JoinRequestReview
-            pending={requests.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))}
-            decided={decided.map((d) => ({ ...d, decidedAt: d.decidedAt?.toISOString() ?? null }))}
-          />
-        </Card>
-      )}
     </Page>
   );
 }

@@ -46,10 +46,9 @@ export function toolsFor(o: OrgOverview): Tool[] {
   if (c["fees.view_org"]) t.push({ key: "expenses", label: "Expenses & funds", sub: c["expenses.record"] ? "Record spending, see the available balance" : c["expenses.approve"] ? "Approve spending, see the available balance" : "Read-only spending and balance", icon: "receipt", tone: "danger", route: "/manage/expenses", badge: c["expenses.approve"] ? (o.finance?.pendingExpenseCount ?? 0) : 0 });
   if (c["events.manage"]) t.push({ key: "events", label: "Manage events", sub: "Create, publish and open check-in", icon: "calendar", tone: "violet", route: "/manage/events", badge: o.events.drafts ?? 0 });
   if (c["announcements.manage"]) t.push({ key: "announcements", label: "Announcements", sub: "Post updates to members", icon: "megaphone", tone: "teal", route: "/manage/announcements" });
-  if (c["joinrequests.review"]) t.push({ key: "join", label: "Join requests", sub: "Accept or reject students who asked to join", icon: "person-add", tone: "warning", route: "/manage/join-requests", badge: o.members?.pendingJoinRequests ?? 0 });
   if (c["members.basic"]) t.push({ key: "members", label: "Members", sub: `${o.members?.count ?? 0} in this organization`, icon: "people", tone: "info", route: "/manage/members" });
   if (c["documents.manage"]) t.push({ key: "documents", label: "Documents", sub: "Organization records", icon: "document-text", tone: "success", route: "/manage/documents" });
   // Leading tool follows the position: finance for the Treasurer/Auditor, records for the Secretary, events for officers.
-  const lead: Record<Role, string> = { PRESIDENT: "events", TREASURER: "finance", AUDITOR: "finance", SECRETARY: "join", ADVISER: "members", OFFICER: "events", MEMBER: "" };
+  const lead: Record<Role, string> = { PRESIDENT: "events", TREASURER: "finance", AUDITOR: "finance", SECRETARY: "announcements", ADVISER: "members", OFFICER: "events", MEMBER: "" };
   return t.sort((a, b) => Number(b.key === lead[role]) - Number(a.key === lead[role]));
 }

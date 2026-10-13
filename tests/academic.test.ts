@@ -6,8 +6,8 @@ import {
 import { createOrganizationAction, addMemberAction, changeMemberRoleAction, endMembershipAction } from "@/features/organizations/actions";
 import { createOrganization } from "@/features/organizations/service";
 import { applyAutoMappingForUser, syncOrganizationMembers } from "@/features/organizations/mapping";
-import { cancelJoinRequest, decideJoinRequest, joinableOrganizations, submitJoinRequest } from "@/features/organizations/requests";
-import { decideJoinRequestAction, submitJoinRequestAction } from "@/features/organizations/request-actions";
+import { cancelJoinRequest, joinableOrganizations, joinOrganization } from "@/features/organizations/requests";
+import { joinOrganizationAction } from "@/features/organizations/request-actions";
 import { createStudentAction, updateStudentAction } from "@/features/students/actions";
 import { importStudents } from "@/features/students/service";
 import { ForbiddenError } from "@/lib/permissions";
@@ -236,88 +236,65 @@ describe("automatic academic mapping", () => {
   });
 });
 
-describe("join requests", () => {
+describe("joining an organization (immediate, no approval)", () => {
   async function setup() {
     const w = await makeWorld();
     const club = (await db.organization.create({ data: { name: "Chess Club", scope: "CO_CURRICULAR" } }));
-    const mk = async (email: string, role: "PRESIDENT" | "SECRETARY" | "OFFICER" | "TREASURER" | "MEMBER") => { const u = await makeUser({ email }); await addMembership(u.id, club.id, role); return u; };
-    const roles = { PRESIDENT: await mk("p@c.test", "PRESIDENT"), SECRETARY: await mk("s@c.test", "SECRETARY"), OFFICER: await mk("o@c.test", "OFFICER"), TREASURER: await mk("t@c.test", "TREASURER"), MEMBER: await mk("m@c.test", "MEMBER") };
+    const mk = async (email: string, role: "PRESIDENT" | "SECRETARY" | "MEMBER") => { const u = await makeUser({ email }); await addMembership(u.id, club.id, role); return u; };
+    const roles = { PRESIDENT: await mk("p@c.test", "PRESIDENT"), SECRETARY: await mk("s@c.test", "SECRETARY"), MEMBER: await mk("m@c.test", "MEMBER") };
     const student = await makeUser({ email: "stu@c.test" });
     return { w, club, roles, student };
   }
 
-  it("only co-curricular organizations accept requests; duplicates and existing members are refused", async () => {
+  it("a student joins a co-curricular organization at once, as a plain MEMBER, with the source and audit recorded", async () => {
+    const { club, student } = await setup();
+    await signInAs(student.id);
+    expect(await joinOrganizationAction({}, form({ organizationId: club.id }))).toEqual({ success: "You joined Chess Club. You are now a member." });
+    expect(await db.organizationMember.findFirstOrThrow({ where: { userId: student.id, organizationId: club.id } })).toMatchObject({ role: "MEMBER", source: "JOIN_REQUEST", endedAt: null, title: null });
+    expect(await db.auditLog.count({ where: { action: "membership.join", actorUserId: student.id, targetId: club.id } })).toBe(1);
+    expect(await db.joinRequest.count()).toBe(0); // no request record is needed any more
+  });
+
+  it("refuses duplicates (also two at once), non-interest-based and archived organizations, admins and deactivated accounts", async () => {
     const { w, club, roles, student } = await setup();
     const names = async () => (await joinableOrganizations(student.id)).map((o) => o.name);
-    expect(await names()).toEqual(expect.arrayContaining(["Chess Club", "Org A", "Org B"])); // all interest-based and open
-    void w;
-    expect(await submitJoinRequest(student.id, club.id, "hi")).toEqual({ ok: true });
-    expect(await submitJoinRequest(student.id, club.id, null)).toMatchObject({ ok: false, error: expect.stringMatching(/pending/) });
-    expect(await submitJoinRequest(roles.MEMBER.id, club.id, null)).toMatchObject({ ok: false, error: expect.stringMatching(/already a member/) });
-    const dept = await db.organization.create({ data: { name: "Dept org", scope: "UNIVERSITY_WIDE" } });
-    expect(await submitJoinRequest(student.id, dept.id, null)).toMatchObject({ ok: false });
-    expect(await names()).not.toContain("Dept org"); // not interest-based
-    expect(await names()).not.toContain("Chess Club"); // already has a pending request
-    await db.organization.update({ where: { id: club.id }, data: { status: "ARCHIVED" } });
+    expect(await names()).toEqual(expect.arrayContaining(["Chess Club", "Org A", "Org B"]));
+    const both = await Promise.all([joinOrganization(student.id, club.id), joinOrganization(student.id, club.id)]);
+    expect(both.filter((r) => r.ok)).toHaveLength(1);
+    expect(await joinOrganization(student.id, club.id)).toMatchObject({ ok: false, error: expect.stringMatching(/already a member/) });
+    expect(await db.organizationMember.count({ where: { userId: student.id, organizationId: club.id, endedAt: null } })).toBe(1);
     expect(await names()).not.toContain("Chess Club");
+    expect(await joinOrganization(roles.MEMBER.id, club.id)).toMatchObject({ ok: false });
+
+    const dept = await db.organization.create({ data: { name: "Dept org", scope: "UNIVERSITY_WIDE" } });
+    expect(await joinOrganization(student.id, dept.id)).toMatchObject({ ok: false, error: expect.stringMatching(/cannot be joined directly/) });
+    expect(await names()).not.toContain("Dept org");
+    const archived = await db.organization.create({ data: { name: "Old club", status: "ARCHIVED" } });
+    expect(await joinOrganization(student.id, archived.id)).toMatchObject({ ok: false });
+    expect(await joinOrganization(w.admin.id, club.id)).toMatchObject({ ok: false, error: expect.stringMatching(/manage organizations/) });
+    const off = await makeUser({ status: "DISABLED" });
+    expect(await joinOrganization(off.id, club.id)).toMatchObject({ ok: false });
+    expect(await db.organizationMember.count({ where: { organizationId: { in: [dept.id, archived.id] } } })).toBe(0);
   });
 
-  it("president and secretary approve; the result is a plain MEMBER with the source and decision recorded", async () => {
-    const { club, roles, student } = await setup();
-    await submitJoinRequest(student.id, club.id, null);
-    const req = await db.joinRequest.findFirstOrThrow();
-    await signInAs(roles.SECRETARY.id);
-    await decideJoinRequestAction(form({ requestId: req.id, decision: "approve", note: "Welcome" }));
-
-    const done = await db.joinRequest.findUniqueOrThrow({ where: { id: req.id } });
-    expect(done).toMatchObject({ status: "APPROVED", decidedById: roles.SECRETARY.id, decisionNote: "Welcome" });
-    expect(done.decidedAt).not.toBeNull();
-    expect(await db.organizationMember.findFirstOrThrow({ where: { userId: student.id, organizationId: club.id } })).toMatchObject({ role: "MEMBER", source: "JOIN_REQUEST", endedAt: null });
-    expect(await db.auditLog.count({ where: { action: "join_request.approve" } })).toBe(1);
+  it("someone who left can join again; history keeps both memberships", async () => {
+    const { club, student } = await setup();
+    await joinOrganization(student.id, club.id);
+    await db.organizationMember.updateMany({ where: { userId: student.id, organizationId: club.id }, data: { endedAt: new Date() } });
+    expect(await joinOrganization(student.id, club.id)).toMatchObject({ ok: true });
+    expect(await db.organizationMember.count({ where: { userId: student.id, organizationId: club.id } })).toBe(2);
   });
 
-  it("rejects and cancellations create no membership; undecided-only rule holds", async () => {
-    const { club, roles, student } = await setup();
-    await submitJoinRequest(student.id, club.id, null);
-    const req = await db.joinRequest.findFirstOrThrow();
-    await signInAs(roles.PRESIDENT.id);
-    await decideJoinRequestAction(form({ requestId: req.id, decision: "reject", note: "Full" }));
-    expect((await db.joinRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("REJECTED");
-    expect(await db.organizationMember.count({ where: { userId: student.id } })).toBe(0);
-    expect(await decideJoinRequest(roles.PRESIDENT.id, req.id, true, null)).toMatchObject({ ok: false }); // already decided
-    expect(await db.organizationMember.count({ where: { userId: student.id } })).toBe(0);
-
-    expect(await submitJoinRequest(student.id, club.id, null)).toEqual({ ok: true }); // may ask again after a rejection
-    const second = await db.joinRequest.findFirstOrThrow({ where: { status: "PENDING" } });
-    expect(await cancelJoinRequest(student.id, second.id)).toEqual({ ok: true });
-    expect(await cancelJoinRequest(student.id, second.id)).toMatchObject({ ok: false });
-  });
-
-  it("other roles, other organizations and the admin cannot review; only the requester can cancel", async () => {
-    const { w, club, roles, student } = await setup();
-    await submitJoinRequest(student.id, club.id, null);
-    const req = await db.joinRequest.findFirstOrThrow();
-    for (const id of [roles.OFFICER.id, roles.TREASURER.id, roles.MEMBER.id, student.id, w.presidentB.id, w.admin.id]) {
-      await signInAs(id);
-      await expect(decideJoinRequestAction(form({ requestId: req.id, decision: "approve" }))).rejects.toBeInstanceOf(ForbiddenError);
-    }
-    expect((await db.joinRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("PENDING");
-    expect(await cancelJoinRequest(roles.PRESIDENT.id, req.id)).toMatchObject({ ok: false });
-  });
-
-  it("two reviewers deciding at once produce one decision and one membership", async () => {
-    const { club, roles, student } = await setup();
-    await submitJoinRequest(student.id, club.id, null);
-    const req = await db.joinRequest.findFirstOrThrow();
-    const results = await Promise.all([decideJoinRequest(roles.PRESIDENT.id, req.id, true, null), decideJoinRequest(roles.SECRETARY.id, req.id, true, null)]);
-    expect(results.filter((r) => r.ok)).toHaveLength(1);
-    expect(await db.organizationMember.count({ where: { userId: student.id, organizationId: club.id } })).toBe(1);
-  });
-
-  it("system admins cannot send join requests", async () => {
-    const { w, club } = await setup();
-    await signInAs(w.admin.id);
-    expect((await submitJoinRequestAction({}, form({ organizationId: club.id }))).error).toMatch(/manage organizations/);
+  it("an old pending request is kept and closed as accepted when the student joins; it can also be withdrawn", async () => {
+    const { w, club, student } = await setup();
+    const old = await db.joinRequest.create({ data: { organizationId: club.id, userId: student.id, message: "please" } });
+    await joinOrganization(student.id, club.id);
+    expect(await db.joinRequest.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({ status: "APPROVED", decisionNote: "Joined directly", message: "please" });
+    const other = await db.joinRequest.create({ data: { organizationId: w.orgA.id, userId: student.id } });
+    expect(await cancelJoinRequest(w.a.PRESIDENT.id, other.id)).toMatchObject({ ok: false }); // only the requester
+    expect(await cancelJoinRequest(student.id, other.id)).toEqual({ ok: true });
+    expect((await db.joinRequest.findUniqueOrThrow({ where: { id: other.id } })).status).toBe("CANCELLED");
+    expect(await db.joinRequest.count()).toBe(2); // nothing deleted
   });
 });
 

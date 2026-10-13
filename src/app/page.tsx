@@ -4,9 +4,16 @@ import { Icon, type IconName } from "@/components/layout/icons";
 import { Logo, LogoMark } from "@/features/landing/brand";
 import { DashboardMockup, FloatingChip, PhoneMockup } from "@/features/landing/mockups";
 
+const DESCRIPTION = "Tapasok: events, QR and RFID attendance, dues and announcements for student organizations, in one place. On the web and on Android.";
+
+// The one page meant for search results: indexed, canonical, with a link preview.
 export const metadata: Metadata = {
   title: "Tapasok · Student organization management",
-  description: "Events, QR and RFID attendance, dues and announcements for student organizations, in one place. On the web and on Android.",
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
+  openGraph: { type: "website", url: "/", siteName: "Tapasok", title: "Tapasok · Student organization management", description: DESCRIPTION },
+  twitter: { card: "summary", title: "Tapasok", description: DESCRIPTION },
 };
 
 // The public front door. Static: it reads no session, so it is prerendered and served instantly. Signing in happens on /login.
@@ -220,7 +227,7 @@ function Roles() {
   const roles: [string, IconName, string, string[]][] = [
     ["President", "building", "The whole organization at a glance.", ["Members, events and check-in trends", "Payments waiting for verification", "Create events and announcements"]],
     ["Treasurer", "wallet", "Money in, money owed, money verified.", ["Collected, outstanding and awaiting totals", "Confirm GCash payments, record cash", "Balances member by member"]],
-    ["Secretary", "file", "Records and communication.", ["Minutes, resolutions and documents", "Announcements to targeted members", "Join requests and the member roster"]],
+    ["Secretary", "file", "Records and communication.", ["Minutes, resolutions and documents", "Announcements to targeted members", "The member roster"]],
     ["Member", "users", "Everything about you, nothing else.", ["Next event and one-tap check-in", "Attendance record and fees", "Announcements and notifications"]],
   ];
   return (

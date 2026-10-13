@@ -17,17 +17,17 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
   // System Admin gets the administration dashboard (every query there re-checks the system permission).
   if (isSystemAdmin(user)) return <AdminOrganizations sp={sp} />;
 
-  // Everyone else: only their own organizations, plus joining by code or request.
+  // Everyone else: only their own organizations, plus joining (directly, or with a code).
   const organizations = await listVisibleOrganizations(user);
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <header>
         <h1 className="text-2xl font-semibold">My Organizations</h1>
-        <p className="text-sm text-muted">Your memberships. Join another organization with a code or by request below.</p>
+        <p className="text-sm text-muted">Your memberships. Join another organization below, directly or with a code.</p>
       </header>
 
       {organizations.length === 0 ? (
-        <EmptyState title="No organizations yet" hint="Join one below with a code from an officer." />
+        <EmptyState title="No organizations yet" hint="Join one below: directly, or with a code from an officer." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border bg-surface shadow-card">
           <table className="w-full text-left text-sm">

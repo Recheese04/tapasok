@@ -31,7 +31,6 @@ export const ORG_POLICY = {
   // Membership
   "members.manage": ["PRESIDENT"],
   "joincode.manage": ["PRESIDENT"],
-  "joinrequests.review": ["PRESIDENT", "SECRETARY"],
   // Change an existing member's position among Member, Officer, Secretary, Treasurer and Auditor. Adding or removing members
   // stays with members.manage; President and Adviser positions are assigned by a System Admin only.
   "officers.designate": ["PRESIDENT", "ADVISER"],

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,9 +13,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Every page is "noindex" by default (sign-in and everything behind it); the public landing page opts in to search results.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Tapasok",
+  applicationName: "Tapasok",
   description: "Organization management, events, and QR attendance.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

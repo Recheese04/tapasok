@@ -27,12 +27,7 @@ export async function adminOrganizations(f: OrgFilters) {
       select: {
         id: true, name: true, acronym: true, status: true, scope: true, autoEnroll: true,
         college: { select: { code: true } }, department: { select: { name: true } }, program: { select: { code: true } },
-        _count: {
-          select: {
-            members: { where: { endedAt: null } },
-            joinRequests: { where: { status: "PENDING" } },
-          },
-        },
+        _count: { select: { members: { where: { endedAt: null } } } },
         members: { where: { endedAt: null, role: "ADVISER" }, take: 1, select: { user: { select: { firstName: true, lastName: true } } } },
       },
     }),
@@ -47,7 +42,7 @@ export async function adminOrganizations(f: OrgFilters) {
     rows: rows.map((r) => ({
       id: r.id, name: r.name, acronym: r.acronym, status: r.status, scope: r.scope, autoEnroll: r.autoEnroll,
       unit: r.program?.code ?? r.department?.name ?? r.college?.code ?? null,
-      members: r._count.members, students: students.get(r.id) ?? 0, pendingRequests: r._count.joinRequests,
+      members: r._count.members, students: students.get(r.id) ?? 0,
       adviser: r.members[0] ? `${r.members[0].user.firstName} ${r.members[0].user.lastName}` : null,
     })),
     totals: { active: totals.find((t) => t.status === "ACTIVE")?._count._all ?? 0, archived: totals.find((t) => t.status === "ARCHIVED")?._count._all ?? 0 },
@@ -63,7 +58,7 @@ export async function adminOrganizationDetails(id: string) {
       id: true, name: true, acronym: true, description: true, status: true, scope: true, autoEnroll: true, createdAt: true,
       collegeId: true, departmentId: true, programId: true,
       college: { select: { code: true, name: true } }, department: { select: { name: true } }, program: { select: { code: true, name: true } },
-      _count: { select: { events: true, announcements: true, documents: true, joinRequests: { where: { status: "PENDING" } }, devices: { where: { active: true } } } },
+      _count: { select: { events: true, announcements: true, documents: true, devices: { where: { active: true } } } },
     },
   });
   if (!org) return null;
