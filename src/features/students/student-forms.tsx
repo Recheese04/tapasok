@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { AddressFields } from "@/components/shared/address-fields";
 import { AcademicSelect, type TreeCollege } from "@/components/shared/academic-select";
@@ -81,7 +82,7 @@ export function StudentForm({ student, ownProfile = false, tree = [] }: { studen
               <div className="flex flex-col gap-1 text-sm">
                 <span className="font-medium">RFID card</span>
                 <span className="font-mono text-muted">{student.rfidUid ?? "None"}</span>
-                <span className="text-xs text-muted">Change it in the RFID card section of the account page.</span>
+                <Link href={`/users/${student.userId}#rfid`} className="text-xs font-medium text-primary hover:underline">{student.rfidUid ? "Change card" : "Register a card"} (scan or enter the UID)</Link>
               </div>
             ) : (
               <Field id="rfidUid" label="RFID card UID (optional)" error={fe.rfidUid} hint="Hexadecimal, as printed by the reader (for example 04A1B2C3).">

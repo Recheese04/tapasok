@@ -76,7 +76,7 @@ export function UserForm({ tree, values, initialType = "STUDENT" }: { tree: Tree
               <div className="flex flex-col gap-1 text-sm">
                 <span className="font-medium">RFID card</span>
                 <span className="font-mono text-muted">{values?.rfidUid ?? "None"}</span>
-                <span className="text-xs text-muted">Change it in the RFID card section of the account page.</span>
+                <Link href={`/users/${values!.userId}#rfid`} className="text-xs font-medium text-primary hover:underline">{values?.rfidUid ? "Change card" : "Register a card"} (scan or enter the UID)</Link>
               </div>
             ) : (
               <Field id="rfidUid" label="RFID card UID (optional)" error={fe.rfidUid} hint="Hexadecimal, for example 04A1B2C3."><input id="rfidUid" name="rfidUid" defaultValue={values?.rfidUid ?? ""} autoCapitalize="characters" className={`${inputClass} font-mono`} /></Field>

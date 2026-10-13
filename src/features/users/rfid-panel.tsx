@@ -45,7 +45,7 @@ export function RfidPanel({ userId, student, current, devices }: { userId: strin
   });
 
   return (
-    <section className={box} aria-labelledby="rfid-title">
+    <section id="rfid" className={`${box} scroll-mt-24`} aria-labelledby="rfid-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="rfid-title" className="font-medium">RFID card</h2>
