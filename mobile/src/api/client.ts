@@ -23,6 +23,30 @@ export const loadToken = async () => (memoryToken = await secureGet(TOKEN_KEY));
 export const saveToken = async (t: string) => { memoryToken = t; await secureSet(TOKEN_KEY, t); };
 export const clearToken = async () => { memoryToken = null; await secureDelete(TOKEN_KEY); };
 
+/**
+ * Uploads the signed-in person's own profile picture (multipart), reporting progress 0-100. The server takes the account from
+ * the token only, validates and re-encodes the picture.
+ */
+export function uploadOwnPhoto(file: { uri: string; mimeType: string; name: string }, onProgress: (pct: number) => void): Promise<{ ok: true; version: number }> {
+  return new Promise((resolve, reject) => {
+    if (!BASE) return reject(new ApiError(0, "CONFIG", "The app is not configured."));
+    const body = new FormData();
+    body.append("photo", { uri: file.uri, type: file.mimeType, name: file.name } as unknown as Blob);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/api/mobile/me/photo`);
+    if (memoryToken) xhr.setRequestHeader("Authorization", `Bearer ${memoryToken}`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let res: { ok?: boolean; version?: number; error?: { code?: string; message?: string } } = {};
+      try { res = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status === 200 && res.ok) resolve({ ok: true, version: res.version ?? 1 });
+      else reject(new ApiError(xhr.status, res.error?.code ?? "ERROR", res.error?.message ?? "The picture could not be saved. Try again."));
+    };
+    xhr.onerror = () => reject(new ApiError(0, "NETWORK", "Could not reach Tapasok. Check your connection."));
+    xhr.send(body);
+  });
+}
+
 /** An image source for a private, signed-in image (e.g. a member's photo): the URL plus the Bearer header. */
 export const authedImage = (path: string) => ({ uri: `${BASE}/api/mobile${path}`, headers: memoryToken ? { Authorization: `Bearer ${memoryToken}` } : undefined });
 
@@ -92,6 +116,7 @@ export const api = {
     request<{ ok: true; id: string; duplicate: boolean }>("POST", `/org/${orgId}/expenses`, e),
   decideExpense: (orgId: string, id: string, action: "approve" | "reject" | "cancel" | "reverse", reason?: string) =>
     request<{ ok: true; available?: string }>("POST", `/org/${orgId}/expenses/${id}`, { action, reason }),
+  removeOwnPhoto: () => request<{ ok: true }>("DELETE", "/me/photo"),
   liveSession: (orgId: string, sessionId: string) => get<LiveData>(`/org/${orgId}/sessions/${sessionId}/live`),
   orgDocuments: (orgId: string) => get<{ canManage: boolean; documents: OrgDocument[] }>(`/org/${orgId}/documents`),
 };

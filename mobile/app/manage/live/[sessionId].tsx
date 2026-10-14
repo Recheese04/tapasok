@@ -21,11 +21,13 @@ const STATE: Record<LiveData["session"]["state"], { tone: "success" | "warning" 
 };
 
 /** Member photo (signed-in request) with an initials avatar when there is none or it fails to load. */
-function Photo({ orgId, item, size }: { orgId: string; item: { userId: string; name: string; hasPhoto: boolean }; size: number }) {
-  const [failed, setFailed] = useState(false);
+function Photo({ orgId, item, size }: { orgId: string; item: { userId: string; name: string; hasPhoto: boolean; photoVersion: number | null }; size: number }) {
+  const path = `/org/${orgId}/members/${item.userId}/photo?v=${item.photoVersion ?? 0}`;
+  // A failure is remembered per picture version, so a newly changed picture is tried again.
+  const [failedPath, setFailedPath] = useState<string | null>(null);
   const parts = item.name.split(" ");
-  if (!item.hasPhoto || failed) return <Avatar first={parts[0] ?? ""} last={parts.slice(-1)[0] ?? ""} size={size} />;
-  return <Image source={authedImage(`/org/${orgId}/members/${item.userId}/photo`)} onError={() => setFailed(true)} accessibilityLabel={`Photo of ${item.name}`} style={{ width: size, height: size, borderRadius: size / 3.2, backgroundColor: colors.surfaceAlt }} />;
+  if (!item.hasPhoto || failedPath === path) return <Avatar first={parts[0] ?? ""} last={parts.slice(-1)[0] ?? ""} size={size} />;
+  return <Image source={authedImage(path)} onError={() => setFailedPath(path)} accessibilityLabel={`Photo of ${item.name}`} style={{ width: size, height: size, borderRadius: size / 3.2, backgroundColor: colors.surfaceAlt }} />;
 }
 
 type Spot = ({ kind: "in"; item: LiveCheckIn } | { kind: "rejected"; item: LiveRejection }) & { shownAt: number };

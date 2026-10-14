@@ -6,6 +6,8 @@ import { ROLE_LABEL } from "@/features/auth/roles";
 import { getSettings } from "@/features/settings/system-settings";
 import { PasswordForm, ProfileForm, SettingsSection, SystemSettingsForm } from "@/features/settings/forms";
 import { StudentForm } from "@/features/students/student-forms";
+import { ProfilePhotoCard } from "@/features/profile/photo-card";
+import { photoVersion } from "@/features/profile/photo";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
 // request, so it cannot be prerendered or shared. The layout and loading.tsx stream the frame and a skeleton while it
@@ -14,9 +16,10 @@ export const instant = false;
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [profile, staff] = await Promise.all([
+  const [profile, staff, version] = await Promise.all([
     db.studentProfile.findUnique({ where: { userId: user.id } }),
     db.staffProfile.findUnique({ where: { userId: user.id }, select: { employeeId: true, jobTitle: true } }),
+    photoVersion(user.id),
   ]);
   const settings = canSystem(user, "settings.system") ? await getSettings() : null;
   const isAdmin = user.systemRole === "SYSTEM_ADMIN";
@@ -30,7 +33,10 @@ export default async function SettingsPage() {
         {/* Who you are: read-only summary that never changes layout with the forms on the right. */}
         <aside className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6 shadow-card lg:sticky lg:top-24">
           <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-xl font-semibold text-primary-foreground" aria-hidden="true">{initials || "?"}</span>
+            {version !== null && !isAdmin ? (
+              // eslint-disable-next-line @next/next/no-img-element -- private, authorized picture
+              <img src={`/users/${user.id}/photo?v=${version}`} alt="" className="h-16 w-16 shrink-0 rounded-2xl object-cover" />
+            ) : <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-xl font-semibold text-primary-foreground" aria-hidden="true">{initials || "?"}</span>}
             <div className="min-w-0">
               <p className="truncate text-lg font-semibold">{user.firstName} {user.lastName}</p>
               <p className="truncate text-sm text-muted">{user.email}</p>
@@ -69,6 +75,12 @@ export default async function SettingsPage() {
         </aside>
 
         <div className="flex min-w-0 flex-col gap-6">
+          {!isAdmin && (
+            <SettingsSection title="Profile picture" description="Your picture in Tapasok. Only you can change it.">
+              <ProfilePhotoCard userId={user.id} name={`${user.firstName} ${user.lastName}`} version={version} allowed={!isAdmin} />
+            </SettingsSection>
+          )}
+
           <SettingsSection title="Personal details" description="Your name as it appears to other people in Tapasok.">
             <ProfileForm firstName={user.firstName} lastName={user.lastName} email={user.email} />
           </SettingsSection>
@@ -78,7 +90,7 @@ export default async function SettingsPage() {
           </SettingsSection>
 
           {profile && (
-            <SettingsSection title="Student profile" description="Your contact details, photo and address. Your student number, name and program are managed by an administrator.">
+            <SettingsSection title="Student profile" description="Your contact details and address. Your student number, name and program are managed by an administrator.">
               <StudentForm ownProfile student={{ ...profile, firstName: user.firstName, lastName: user.lastName, email: user.email }} />
             </SettingsSection>
           )}

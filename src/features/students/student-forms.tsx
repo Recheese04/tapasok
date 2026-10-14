@@ -98,9 +98,6 @@ export function StudentForm({ student, ownProfile = false, tree = [] }: { studen
           <p className="mt-1 text-xs text-muted">Program and year level are recorded for the active semester, so past terms keep their own placement.</p>
         </div>
       )}
-      <Field id="photo" label="Profile photo (optional)" error={fe.photo} hint="JPG or PNG, up to 2 MB.">
-        <input id="photo" name="photo" type="file" accept="image/jpeg,image/png" className={inputClass} />
-      </Field>
       <Field id="streetAddress" label="House no. / street (optional)" error={fe.streetAddress}>
         <input id="streetAddress" name="streetAddress" defaultValue={student?.streetAddress ?? ""} className={inputClass} />
       </Field>

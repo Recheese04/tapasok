@@ -26,13 +26,16 @@ const ago = (iso: string | null, now: number) => {
 };
 
 /** Student photo with a clean initials avatar when there is none or it fails to load. */
-function Photo({ userId, name, hasPhoto, size }: { userId: string; name: string; hasPhoto: boolean; size: "lg" | "md" | "sm" }) {
-  const [failed, setFailed] = useState(false);
+function Photo({ userId, name, hasPhoto, version, size }: { userId: string; name: string; hasPhoto: boolean; version?: number | null; size: "lg" | "md" | "sm" }) {
+  const src = `/users/${userId}/photo?v=${version ?? 0}`;
+  // A failure is remembered per picture version, so a newly changed picture is tried again.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
   const initials = name.split(" ").filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   const cls = size === "lg" ? "h-28 w-28 rounded-3xl text-3xl sm:h-32 sm:w-32" : size === "md" ? "h-20 w-20 rounded-2xl text-xl" : "h-10 w-10 rounded-xl text-sm";
   if (hasPhoto && !failed) {
     // eslint-disable-next-line @next/next/no-img-element -- authorized, private photo route (not optimizable)
-    return <img src={`/users/${userId}/photo`} alt={`Photo of ${name}`} onError={() => setFailed(true)} className={`${cls} shrink-0 object-cover ring-2 ring-surface`} />;
+    return <img src={src} alt={`Photo of ${name}`} onError={() => setFailedSrc(src)} className={`${cls} shrink-0 object-cover ring-2 ring-surface`} />;
   }
   return <span aria-hidden="true" className={`${cls} flex shrink-0 items-center justify-center bg-primary-soft font-semibold text-primary`}>{initials || "?"}</span>;
 }
@@ -58,7 +61,7 @@ function SpotCard({ spot, big, latest, context }: { spot: Shown; big: boolean; l
   if (big) {
     return (
       <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-        <Photo userId={c.userId} name={c.name} hasPhoto={c.hasPhoto} size="lg" />
+        <Photo userId={c.userId} name={c.name} hasPhoto={c.hasPhoto} version={c.photoVersion} size="lg" />
         <div className="flex min-w-0 flex-col gap-1">
           <span>{status}</span>
           <p className="break-words text-2xl font-semibold sm:text-3xl">{c.name}</p>
@@ -70,7 +73,7 @@ function SpotCard({ spot, big, latest, context }: { spot: Shown; big: boolean; l
   }
   return (
     <div className={`flex items-center gap-3 rounded-2xl border p-3 ${latest ? "border-primary/40 bg-primary-soft/30" : "border-border"}`}>
-      <Photo userId={c.userId} name={c.name} hasPhoto={c.hasPhoto} size="md" />
+      <Photo userId={c.userId} name={c.name} hasPhoto={c.hasPhoto} version={c.photoVersion} size="md" />
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="flex flex-wrap items-center gap-1.5">{status}{latest ? <span className="text-xs font-medium text-primary">Latest</span> : null}</span>
         <p className="truncate text-base font-semibold">{c.name}</p>
@@ -205,7 +208,7 @@ export function LiveMonitor({ initial }: { initial: LiveData }) {
             <ul className="divide-y divide-border p-2">
               {feed.map((c) => (
                 <li key={c.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <Photo userId={c.userId} name={c.name} hasPhoto={c.hasPhoto} size="sm" />
+                  <Photo userId={c.userId} name={c.name} hasPhoto={c.hasPhoto} version={c.photoVersion} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{c.name}</p>
                     <p className="truncate text-xs text-muted">{c.studentNumber ?? "—"}{c.program ? ` · ${c.program}` : ""}{c.yearLevel ? ` · Year ${c.yearLevel}` : ""} · {SOURCE[c.source] ?? c.source}</p>

@@ -1,7 +1,8 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Image, Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../src/api/client";
+import { api, authedImage } from "../../src/api/client";
 import { useAuth } from "../../src/auth/AuthContext";
 import { Notice, OrgChip } from "../../src/components/kit";
 import { OfficerSection } from "../../src/components/officer";
@@ -28,7 +29,7 @@ export default function Home() {
     <ScreenHeader
       eyebrow={`${greeting()},`} title={me?.firstName ?? ""}
       right={<IconButton name="notifications-outline" label={`Notifications${data?.unread ? `, ${data.unread} unread` : ""}`} onDark badge={data?.unread} onPress={() => router.push("/notifications")} />}
-      avatar={me ? { first: me.firstName, last: me.lastName } : undefined} onAvatar={() => router.navigate("/account")}
+      lead={me ? <ProfileCircle first={me.firstName} last={me.lastName} version={me.photoVersion} onPress={() => router.push("/profile")} /> : undefined}
     >
       <OrgChip />
     </ScreenHeader>
@@ -135,5 +136,27 @@ export default function Home() {
         ))}
       </Body>
     </View>
+  );
+}
+
+/** A large round profile picture for the Home header (initials when there is none). Opens Profile, where it is changed. */
+function ProfileCircle({ first, last, version, onPress }: { first: string; last: string; version: number | null; onPress: () => void }) {
+  const size = 76;
+  const path = `/me/photo?v=${version}`;
+  // Falls back to initials if the picture cannot be loaded (for example an older picture that is no longer stored).
+  const [failed, setFailed] = useState<string | null>(null);
+  const showPhoto = version !== null && failed !== path;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={version !== null ? "Your profile picture. Open your profile" : "Add a profile picture"} hitSlop={6}
+      style={({ pressed }) => ({ marginRight: space.md, opacity: pressed ? 0.85 : 1 })}>
+      <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 3, borderColor: colors.onDark, overflow: "hidden", backgroundColor: colors.onDarkFaint, alignItems: "center", justifyContent: "center" }}>
+        {showPhoto
+          ? <Image source={authedImage(path)} onError={() => setFailed(path)} accessibilityIgnoresInvertColors style={{ width: "100%", height: "100%" }} />
+          : <Txt variant="h1" color={colors.onDark}>{`${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase()}</Txt>}
+      </View>
+      <View style={{ position: "absolute", right: -2, bottom: -2, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.navy900, alignItems: "center", justifyContent: "center" }}>
+        <Ionicons name={version !== null ? "pencil" : "camera"} size={13} color={colors.navy900} />
+      </View>
+    </Pressable>
   );
 }

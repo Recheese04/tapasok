@@ -1,4 +1,6 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Image, View } from "react-native";
+import { authedImage } from "../../src/api/client";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../src/auth/AuthContext";
 import { useConfirm } from "../../src/components/kit";
@@ -11,6 +13,7 @@ export default function Account() {
   const router = useRouter();
   const confirm = useConfirm();
   const { me, signOut, refreshMe } = useAuth();
+  const [failedPhoto, setFailedPhoto] = useState<number | null>(null); // initials if the picture cannot be loaded
   if (!me) return null;
   const orgs = organizationsOf(me.memberships);
   const sp = me.student;
@@ -26,7 +29,7 @@ export default function Account() {
       <Body onRefresh={() => void refreshMe()} refreshing={false}>
         <Card style={{ gap: space.lg }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-            <Avatar first={me.firstName} last={me.lastName} size={60} />
+            {me.photoVersion !== null && failedPhoto !== me.photoVersion ? <Image source={authedImage(`/me/photo?v=${me.photoVersion}`)} onError={() => setFailedPhoto(me.photoVersion)} accessibilityLabel="Your profile picture" style={{ width: 60, height: 60, borderRadius: 30 }} /> : <Avatar first={me.firstName} last={me.lastName} size={60} />}
             <View style={{ flex: 1 }}>
               <Txt variant="h2" numberOfLines={1}>{me.firstName} {me.lastName}</Txt>
               <Txt variant="small" numberOfLines={1}>{me.email}</Txt>

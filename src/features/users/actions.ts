@@ -8,7 +8,6 @@ import { validateAddress } from "@/lib/psgc";
 import { addressFormSchema, studentFieldsSchema } from "@/lib/validation/students";
 import { staffFieldsSchema } from "@/lib/validation/staff";
 import { createStudent, updateStudent } from "@/features/students/service";
-import { saveStudentPhoto } from "@/features/students/photo";
 import { createMembership } from "@/features/organizations/membership";
 import { ACCOUNT_TYPES } from "./types";
 import { createPlainAccount, setSystemAdmin, setUserActive, updateUser } from "./service";
@@ -46,12 +45,7 @@ const readStaff = (fd: FormData) => ({
 const readAddress = (fd: FormData) =>
   addressFormSchema.parse({ regionCode: str(fd, "regionCode"), provinceCode: str(fd, "provinceCode"), cityCode: str(fd, "cityCode"), barangayCode: str(fd, "barangayCode") });
 
-async function maybePhoto(userId: string, fd: FormData) {
-  const photo = fd.get("photo");
-  if (!(photo instanceof File) || photo.size === 0) return null;
-  const res = await saveStudentPhoto(userId, photo);
-  return res.ok ? null : res.error;
-}
+// Profile pictures are not set here: each person manages their own (src/features/profile/photo.ts); a System Admin cannot.
 
 // Every action authorizes (system admin, users.manage) before it reads or parses any input.
 
@@ -73,8 +67,7 @@ export async function createAccountAction(_prev: UserFormState, fd: FormData): P
     if (!addr.ok) return { error: addr.error, fieldErrors: addr.field ? { [addr.field]: addr.error } : undefined };
     const res = await createStudent(admin.id, parsed.data, addr.address);
     if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
-    const photoError = await maybePhoto(res.userId, fd);
-    return done(res.userId, res, photoError ? ` The photo was not saved: ${photoError}` : "");
+    return done(res.userId, res);
   }
   if (type.data === "STAFF") {
     const parsed = staffFieldsSchema.safeParse(readStaff(fd));
@@ -112,8 +105,7 @@ export async function updateAccountAction(_prev: UserFormState, fd: FormData): P
     void _email;
     const res = await updateStudent(admin.id, user.id, profile, addr.address);
     if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
-    const photoError = await maybePhoto(user.id, fd);
-    return photoError ? { error: photoError, fieldErrors: { photo: photoError } } : { success: "Saved." };
+    return { success: "Saved." };
   }
   if (user.staffProfile) {
     const parsed = staffFieldsSchema.safeParse(readStaff(fd));

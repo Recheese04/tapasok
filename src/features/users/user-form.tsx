@@ -88,9 +88,6 @@ export function UserForm({ tree, values, initialType = "STUDENT" }: { tree: Tree
           </div>
           <Field id="streetAddress" label="House no. / street (optional)" error={fe.streetAddress}><input id="streetAddress" name="streetAddress" defaultValue={values?.streetAddress ?? ""} className={inputClass} /></Field>
           <AddressFields defaults={values} errors={fe} />
-          <Field id="photo" label={`Profile photo (optional)${values?.hasPhoto ? " — replaces the current one" : ""}`} error={fe.photo} hint="JPG or PNG, up to 2 MB.">
-            <input id="photo" name="photo" type="file" accept="image/jpeg,image/png" className={inputClass} />
-          </Field>
         </fieldset>
       )}
 

@@ -61,6 +61,7 @@ model User {
   createdJoinCodes    OrganizationJoinCode[]
   studentProfile      StudentProfile?
   staffProfile        StaffProfile?
+  photo               ProfilePhoto?
   activationTokens    ActivationToken[]
   attendance          AttendanceRecord[]
   consequences        Consequence[]
@@ -1155,4 +1156,23 @@ model FinancialAuditEntry {
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
   @@map("financial_audit_entries")
+}
+
+// A person's profile picture, one per account, stored in the database so it survives redeployments (the server's own disk
+// is temporary on the host). Uploads are decoded, re-encoded and resized on the server (512 x 512 WebP, metadata removed);
+// replacing or removing a picture replaces or deletes this row, so nothing is left behind. `version` grows on every change
+// so screens can request the new picture. Linked to the account only: RFID cards and attendance never reference it.
+model ProfilePhoto {
+  userId    String   @id @map("user_id") @db.Uuid
+  content   Bytes
+  mime      String
+  width     Int
+  height    Int
+  byteSize  Int      @map("byte_size")
+  version   Int      @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profile_photos")
 }

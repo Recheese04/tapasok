@@ -209,8 +209,9 @@ export function Chips<T extends string>({ options, value, onChange, onDark }: { 
  * Navy page header. `title` is the page name; `eyebrow` gives context above it (greeting, organization). Faint rings are
  * the only decoration. `children` sits under the title (filters, organization chip, search).
  */
-export function ScreenHeader({ title, eyebrow, subtitle, avatar, onAvatar, back, children, right }: {
+export function ScreenHeader({ title, eyebrow, subtitle, avatar, onAvatar, back, children, right, lead }: {
   title: string; eyebrow?: string; subtitle?: string; avatar?: { first: string; last: string }; onAvatar?: () => void; back?: () => void; children?: ReactNode; right?: ReactNode;
+  lead?: ReactNode; // shown before the title, e.g. a large profile picture
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -218,6 +219,7 @@ export function ScreenHeader({ title, eyebrow, subtitle, avatar, onAvatar, back,
       <Rings size={260} right={-90} top={-120} />
       <View style={s.headerRow}>
         {back ? <IconButton name="chevron-back" label="Go back" onDark onPress={back} /> : null}
+        {lead}
         <View style={{ flex: 1 }}>
           {eyebrow ? <Txt variant="small" color={colors.onDarkMuted} numberOfLines={1}>{eyebrow}</Txt> : null}
           <Txt variant={back ? "h2" : "h1"} color={colors.onDark} numberOfLines={1}>{title}</Txt>

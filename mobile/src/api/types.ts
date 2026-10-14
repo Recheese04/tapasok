@@ -2,6 +2,7 @@
 export type Membership = { organizationId: string; organization: string; acronym: string | null; role: string; title: string | null };
 export type Me = {
   id: string; email: string; firstName: string; lastName: string; unread: number; memberships: Membership[];
+  photoVersion: number | null;
   student: null | { studentNumber: string; middleName: string | null; yearLevel: number | null; contactNumber: string | null; streetAddress: string | null; program: string | null; department: string | null; college: string | null; address: string | null };
 };
 export type EventItem = { id: string; title: string; startsAt: string; endsAt: string; venue: string | null; status: string; organization: string };
@@ -70,7 +71,7 @@ export type OrgExpenses = { canRecord: boolean; canApprove: boolean; me: string;
 
 export type LiveCheckIn = {
   id: string; userId: string; name: string; studentNumber: string | null; program: string | null; yearLevel: number | null;
-  status: "PRESENT" | "LATE"; source: string; at: string; time: string; hasPhoto: boolean;
+  status: "PRESENT" | "LATE"; source: string; at: string; time: string; hasPhoto: boolean; photoVersion: number | null;
 };
 export type LiveRejection = { id: string; code: string; message: string; name: string | null; studentNumber: string | null; device: string; cardTail: string | null; at: string; time: string };
 export type LiveData = {

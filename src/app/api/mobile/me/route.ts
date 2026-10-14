@@ -1,6 +1,7 @@
 import { db } from "@/lib/database/client";
 import { authed, fail, json } from "@/lib/mobile/api";
 import { unreadCount } from "@/features/notifications/service";
+import { photoVersion } from "@/features/profile/photo";
 import { ownProfileSchema } from "@/lib/validation/students";
 
 const profile = async (userId: string) =>
@@ -13,13 +14,15 @@ const profile = async (userId: string) =>
   });
 
 async function me(userId: string) {
-  const [u, sp, unread] = await Promise.all([
+  const [u, sp, unread, photo] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, email: true, firstName: true, lastName: true, lastLoginAt: true } }),
     profile(userId),
     unreadCount(userId),
+    photoVersion(userId),
   ]);
   return {
     id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, unread,
+    photoVersion: photo, // the person's own picture (null = none); the app loads /me/photo?v=<version>
     student: sp && {
       studentNumber: sp.studentNumber, middleName: sp.middleName, yearLevel: sp.yearLevel, contactNumber: sp.contactNumber, streetAddress: sp.streetAddress,
       program: sp.program?.name ?? null, department: sp.program?.department.name ?? null, college: sp.program?.department.college.name ?? null,

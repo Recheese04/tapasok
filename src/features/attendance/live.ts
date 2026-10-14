@@ -39,6 +39,7 @@ export type SessionState = "open" | "not_activated" | "not_started" | "ended" | 
 export type LiveCheckIn = {
   id: string; userId: string; name: string; studentNumber: string | null; program: string | null; yearLevel: number | null;
   status: AttendanceStatus; source: string; at: string; time: string; hasPhoto: boolean;
+  photoVersion: number | null; // the student's CURRENT picture (changes when they change it); null = initials avatar
 };
 export type LiveRejection = { id: string; code: string; message: string; name: string | null; studentNumber: string | null; device: string; cardTail: string | null; at: string; time: string };
 
@@ -64,7 +65,7 @@ export async function liveSession(viewer: PolicyUser, sessionId: string, now = n
       where: { sessionId, status: { in: ["PRESENT", "LATE"] } }, orderBy: [{ scannedAt: "desc" }, { id: "desc" }], take: 30,
       select: {
         id: true, status: true, source: true, scannedAt: true,
-        user: { select: { id: true, firstName: true, lastName: true, studentProfile: { select: { studentNumber: true, yearLevel: true, photoKey: true, program: { select: { code: true } } } } } },
+        user: { select: { id: true, firstName: true, lastName: true, photo: { select: { version: true } }, studentProfile: { select: { studentNumber: true, yearLevel: true, photoKey: true, program: { select: { code: true } } } } } },
       },
     }),
     db.auditLog.findMany({ where: { action: "rfid.tap_rejected", targetId: orgId, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 40, select: { id: true, createdAt: true, metadata: true } }),
@@ -95,7 +96,8 @@ export async function liveSession(viewer: PolicyUser, sessionId: string, now = n
     checkIns: recent.map((r): LiveCheckIn => ({
       id: r.id, userId: r.user.id, name: `${r.user.firstName} ${r.user.lastName}`,
       studentNumber: r.user.studentProfile?.studentNumber ?? null, program: r.user.studentProfile?.program?.code ?? null, yearLevel: r.user.studentProfile?.yearLevel ?? null,
-      status: r.status, source: r.source, at: r.scannedAt.toISOString(), time: formatTimeSeconds(r.scannedAt), hasPhoto: !!r.user.studentProfile?.photoKey,
+      status: r.status, source: r.source, at: r.scannedAt.toISOString(), time: formatTimeSeconds(r.scannedAt),
+      ...(() => { const v = r.user.photo?.version ?? (r.user.studentProfile?.photoKey ? 0 : null); return { hasPhoto: v !== null, photoVersion: v }; })(),
     })),
     rejections: rejections.map(({ r, m }): LiveRejection => {
       const p = m.userId ? person.get(m.userId) : undefined;

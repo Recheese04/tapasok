@@ -7,7 +7,6 @@ import { fieldErrorsOf } from "@/lib/format";
 import { validateAddress } from "@/lib/psgc";
 import { addressFormSchema, ownProfileSchema, studentFieldsSchema } from "@/lib/validation/students";
 import { createSetupLink } from "@/features/auth/activation";
-import { saveStudentPhoto } from "./photo";
 import { createStudent, IMPORT_MAX_BYTES, importStudents, updateOwnProfile, updateStudent, type ImportSummary } from "./service";
 
 export type StudentFormState = {
@@ -29,13 +28,8 @@ function readFields(fd: FormData) {
   };
 }
 
-/** Saves an optional uploaded photo; returns an error message, or null when there is none or it saved. */
-async function maybePhoto(userId: string, fd: FormData) {
-  const photo = fd.get("photo");
-  if (!(photo instanceof File) || photo.size === 0) return null;
-  const res = await saveStudentPhoto(userId, photo);
-  return res.ok ? null : res.error;
-}
+// Profile pictures are not set here: each person manages their own picture (src/features/profile/photo.ts), and a System
+// Admin cannot set anyone's picture.
 
 const readAddress = (fd: FormData) =>
   addressFormSchema.parse({
@@ -55,8 +49,6 @@ export async function createStudentAction(_prev: StudentFormState, fd: FormData)
 
   const res = await createStudent(admin.id, parsed.data, addr.address);
   if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
-  const photoError = await maybePhoto(res.userId, fd);
-  if (photoError) return { error: `Student created, but the photo was not saved: ${photoError}`, setupPath: res.setupPath ?? undefined, initialPassword: res.initialPassword ?? undefined };
   return res.initialPassword
     ? { success: "Student created and active.", initialPassword: res.initialPassword }
     : { success: "Student created. Share the setup link below; it is shown only once.", setupPath: res.setupPath ?? undefined };
@@ -74,8 +66,7 @@ export async function updateStudentAction(_prev: StudentFormState, fd: FormData)
 
   const res = await updateStudent(admin.id, userId.data, parsed.data as never, addr.address);
   if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
-  const photoError = await maybePhoto(userId.data, fd);
-  return photoError ? { error: photoError, fieldErrors: { photo: photoError } } : { success: "Saved." };
+  return { success: "Saved." };
 }
 
 export async function importStudentsAction(_prev: StudentFormState, fd: FormData): Promise<StudentFormState> {
@@ -111,6 +102,5 @@ export async function updateOwnProfileAction(_prev: StudentFormState, fd: FormDa
 
   const res = await updateOwnProfile(user.id, parsed.data, addr.address);
   if (!res.ok) return { error: res.error };
-  const photoError = await maybePhoto(user.id, fd);
-  return photoError ? { error: photoError } : { success: "Profile saved." };
+  return { success: "Profile saved." };
 }

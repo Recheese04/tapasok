@@ -46,6 +46,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#0A1A3F"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Tapasok uses a photo you choose as your profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

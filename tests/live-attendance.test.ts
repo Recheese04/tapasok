@@ -44,6 +44,7 @@ describe("live attendance monitor", () => {
     expect(data.checkIns).toEqual([{
       id: rec.id, userId: w.a.MEMBER.id, name: "Juan Dela Cruz", studentNumber: "2026-0001", program: "P1", yearLevel: 2,
       status: "PRESENT", source: "RFID", at: rec.scannedAt.toISOString(), time: formatTimeSeconds(rec.scannedAt), hasPhoto: true,
+      photoVersion: 0, // an older file-based picture; pictures uploaded now are versioned 1, 2, ...
     }]);
     expect(data.totals).toMatchObject({ present: 1, late: 0 });
     expect(data.totals.expected).toBeGreaterThanOrEqual(6);

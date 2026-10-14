@@ -1,27 +1,15 @@
 import { z } from "zod";
-import { db } from "@/lib/database/client";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { canOrg, canSystem } from "@/lib/permissions/policy";
-import { readBytes } from "@/features/documents/storage";
+import { photoResponse, readPhoto } from "@/features/profile/photo";
 
-// A student's photo is visible to the student, to system admins, and to officers who may see the roster
-// of an organization the student actively belongs to.
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+// A person's profile picture. Visible to the person, to System Admin, and to officers who may see the roster of an
+// organization the person actively belongs to (see src/features/profile/photo.ts). Anything else is "not found".
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) return new Response("Not found", { status: 404 });
-
-  const profile = await db.studentProfile.findUnique({ where: { userId: id }, select: { photoKey: true, user: { select: { memberships: { where: { endedAt: null }, select: { organizationId: true } } } } } });
-  if (!profile?.photoKey) return new Response("Not found", { status: 404 });
-
-  const allowed = user.id === id || canSystem(user, "students.manage") || profile.user.memberships.some((m) => canOrg(user, "members.basic", m.organizationId));
-  if (!allowed) return new Response("Not found", { status: 404 });
-
-  let bytes: Buffer;
-  try { bytes = await readBytes(profile.photoKey); } catch { return new Response("Not found", { status: 404 }); }
-  const png = bytes.subarray(0, 4).toString("hex") === "89504e47";
-  return new Response(new Uint8Array(bytes), {
-    headers: { "Content-Type": png ? "image/png" : "image/jpeg", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'", "Cache-Control": "private, max-age=300" },
-  });
+  const photo = await readPhoto(user, id);
+  if (!photo) return new Response("Not found", { status: 404 });
+  return photoResponse(photo, new URL(request.url).searchParams.has("v"));
 }
