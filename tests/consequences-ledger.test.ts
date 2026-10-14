@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { adjustAttendance, finalizeSession, recordOfficerScan } from "@/features/attendance/service";
 import { makeMemberQr } from "@/features/attendance/qr";
 import { calculateConsequencesForSession } from "@/features/consequences/auto";
-import { createConsequenceAction, createRuleAction, updateConsequenceStatusAction } from "@/features/consequences/actions";
+import { createConsequenceAction, createRuleAction, deleteRuleAction, toggleRuleAction, updateConsequenceStatusAction, updateRuleAction } from "@/features/consequences/actions";
 import {
   adjustLedgerAction, assessMemberAction, assignFeeAction, createFeeTypeAction, recordPaymentAction, submitDigitalPaymentAction, verifyPaymentAction, voidPaymentAction,
 } from "@/features/fees/actions";
@@ -169,7 +169,7 @@ describe("automatic consequences", () => {
 
   it("rule configuration and manual consequences copy the rule's penalty and need the right authority", async () => {
     const w = await makeWorld();
-    for (const id of [w.a.TREASURER.id, w.a.SECRETARY.id, w.a.OFFICER.id, w.a.MEMBER.id, w.a.ADVISER.id, w.presidentB.id, w.admin.id]) {
+    for (const id of [w.a.TREASURER.id, w.a.AUDITOR.id, w.a.OFFICER.id, w.a.MEMBER.id, w.a.ADVISER.id, w.presidentB.id, w.admin.id]) {
       await signInAs(id);
       await expect(createRuleAction({}, form({ organizationId: w.orgA.id, name: "Rule", fineAmount: "50" }))).rejects.toBeInstanceOf(ForbiddenError);
     }
@@ -181,6 +181,104 @@ describe("automatic consequences", () => {
     const rule = await db.consequenceRule.findFirstOrThrow({ where: { name: "Missed meeting" } });
     await createConsequenceAction({}, form({ organizationId: w.orgA.id, userId: w.a.MEMBER.id, ruleId: rule.id, eventId: "", reason: "Skipped the meeting" }));
     expect((await balanceOf(w.a.MEMBER.id)).toString()).toBe("75");
+  });
+});
+
+describe("consequence rules (President and Secretary of the same organization)", () => {
+  const ruleIn = (orgId: string) => db.consequenceRule.findMany({ where: { organizationId: orgId }, orderBy: { name: "asc" } });
+
+  it("President and Secretary create, view, edit, deactivate and delete rules in their own organization", async () => {
+    const w = await makeWorld();
+    for (const role of ["PRESIDENT", "SECRETARY"] as const) {
+      await signInAs(w.a[role].id);
+      const name = `${role} absent fine`;
+      expect((await createRuleAction({}, form({ organizationId: w.orgA.id, name, trigger: "ABSENT", penaltyType: "FINE", fineAmount: "50", sessionKind: "" }))).success, role).toBeTruthy();
+      const rule = (await ruleIn(w.orgA.id)).find((r) => r.name === name)!;
+      expect(rule).toMatchObject({ organizationId: w.orgA.id, active: true, penaltyType: "FINE" });
+      expect(rule.fineAmount?.toString()).toBe("50");
+
+      expect((await updateRuleAction({}, form({ ruleId: rule.id, name: `${name} v2`, trigger: "LATE", penaltyType: "SERVICE_HOURS", serviceHours: "2", sessionKind: "TIME_IN", description: "Edited" }))).success, role).toBeTruthy();
+      const edited = await db.consequenceRule.findUniqueOrThrow({ where: { id: rule.id } });
+      expect(edited).toMatchObject({ name: `${name} v2`, trigger: "LATE", penaltyType: "SERVICE_HOURS", sessionKind: "TIME_IN", description: "Edited", fineAmount: null, organizationId: w.orgA.id });
+      expect(edited.serviceHours?.toString()).toBe("2");
+
+      await toggleRuleAction(form({ ruleId: rule.id }));
+      expect((await db.consequenceRule.findUniqueOrThrow({ where: { id: rule.id } })).active).toBe(false);
+      await toggleRuleAction(form({ ruleId: rule.id }));
+      expect((await db.consequenceRule.findUniqueOrThrow({ where: { id: rule.id } })).active).toBe(true);
+
+      await deleteRuleAction(form({ ruleId: rule.id }));
+      expect(await db.consequenceRule.findUnique({ where: { id: rule.id } })).toBeNull();
+    }
+    const actions = (await db.auditLog.findMany({ where: { targetType: "consequence_rule" } })).map((l) => l.action);
+    expect(actions.filter((a) => a === "consequence_rule.delete")).toHaveLength(2);
+    expect(actions).toContain("consequence_rule.update");
+  });
+
+  it("validates edits the same way as new rules and keeps names unique", async () => {
+    const w = await makeWorld();
+    await signInAs(w.a.SECRETARY.id);
+    await createRuleAction({}, form({ organizationId: w.orgA.id, name: "Absent", fineAmount: "50" }));
+    await createRuleAction({}, form({ organizationId: w.orgA.id, name: "Late", trigger: "LATE", fineAmount: "20" }));
+    const late = (await ruleIn(w.orgA.id)).find((r) => r.name === "Late")!;
+    expect((await updateRuleAction({}, form({ ruleId: late.id, name: "Absent", trigger: "LATE", fineAmount: "20" }))).error).toMatch(/already exists/);
+    expect((await updateRuleAction({}, form({ ruleId: late.id, name: "Late", trigger: "LATE", fineAmount: "0" }))).error).toMatch(/fine amount/);
+    expect((await updateRuleAction({}, form({ ruleId: late.id, name: "Late", trigger: "LATE", wholeDay: "on", fineAmount: "5" }))).error).toMatch(/whole-day/i);
+    expect((await updateRuleAction({}, form({ ruleId: late.id, name: "x", fineAmount: "5" }))).error).toMatch(/name/i);
+    expect((await db.consequenceRule.findUniqueOrThrow({ where: { id: late.id } })).fineAmount?.toString()).toBe("20");
+  });
+
+  it("refuses every rule operation outside the organization where the person is President or Secretary", async () => {
+    const w = await makeWorld();
+    const ruleA = await fineRule(w.orgA.id, { name: "A rule" });
+    const ruleB = await fineRule(w.orgB.id, { name: "B rule" });
+    const ops = (ruleId: string) => [
+      () => updateRuleAction({}, form({ ruleId, name: "Taken over", fineAmount: "1" })),
+      () => toggleRuleAction(form({ ruleId })),
+      () => deleteRuleAction(form({ ruleId })),
+    ];
+    // Another organization's President, and this organization's Secretary acting on another organization.
+    await signInAs(w.presidentB.id);
+    await expect(createRuleAction({}, form({ organizationId: w.orgA.id, name: "Rule", fineAmount: "5" }))).rejects.toBeInstanceOf(ForbiddenError);
+    for (const op of ops(ruleA.id)) await expect(op()).rejects.toBeInstanceOf(ForbiddenError);
+    await signInAs(w.a.SECRETARY.id);
+    await expect(createRuleAction({}, form({ organizationId: w.orgB.id, name: "Rule", fineAmount: "5" }))).rejects.toBeInstanceOf(ForbiddenError);
+    for (const op of ops(ruleB.id)) await expect(op()).rejects.toBeInstanceOf(ForbiddenError);
+    // An edit cannot move a rule to another organization: the organization always comes from the stored rule.
+    await updateRuleAction({}, form({ ruleId: ruleA.id, organizationId: w.orgB.id, name: "A rule", fineAmount: "60" }));
+    expect((await db.consequenceRule.findUniqueOrThrow({ where: { id: ruleA.id } })).organizationId).toBe(w.orgA.id);
+    // Roles without rule management, and the System Admin, are refused in their own organization.
+    for (const id of [w.a.TREASURER.id, w.a.AUDITOR.id, w.a.OFFICER.id, w.a.MEMBER.id, w.a.ADVISER.id, w.admin.id]) {
+      await signInAs(id);
+      for (const op of ops(ruleA.id)) await expect(op()).rejects.toBeInstanceOf(ForbiddenError);
+    }
+    expect(await db.consequenceRule.findUniqueOrThrow({ where: { id: ruleB.id } })).toMatchObject({ name: "B rule", active: true });
+    expect(await db.consequenceRule.findUniqueOrThrow({ where: { id: ruleA.id } })).toMatchObject({ name: "A rule", active: true, organizationId: w.orgA.id });
+  });
+
+  it("keeps rule management separate from recording, completing and waiving consequences", async () => {
+    const w = await makeWorld();
+    await signInAs(w.a.SECRETARY.id);
+    await expect(createConsequenceAction({}, form({ organizationId: w.orgA.id, userId: w.a.MEMBER.id, ruleId: "", eventId: "", reason: "Absent from assembly" }))).rejects.toBeInstanceOf(ForbiddenError);
+    const c = await db.consequence.create({ data: { organizationId: w.orgA.id, userId: w.a.MEMBER.id, reason: "x", kind: "SERVICE_HOURS", hours: D(2) } });
+    await expect(updateConsequenceStatusAction(form({ consequenceId: c.id, status: "WAIVED", note: "" }))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(updateConsequenceStatusAction(form({ consequenceId: c.id, status: "COMPLETED", note: "" }))).rejects.toBeInstanceOf(ForbiddenError);
+    expect((await db.consequence.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("PENDING");
+  });
+
+  it("deletes only a rule that never produced a consequence (and detaches it from events); a used rule is kept", async () => {
+    const w = await makeWorld();
+    const unused = await fineRule(w.orgA.id, { name: "Unused" });
+    const used = await fineRule(w.orgA.id, { name: "Used" });
+    const ev = await makeEvent(w.orgA.id, { ruleIds: [unused.id, used.id] });
+    const c = await db.consequence.create({ data: { organizationId: w.orgA.id, userId: w.a.MEMBER.id, ruleId: used.id, eventId: ev.id, reason: "Used: absent", kind: "FINE", amount: D(50) } });
+    await signInAs(w.a.SECRETARY.id);
+    await deleteRuleAction(form({ ruleId: used.id }));
+    await deleteRuleAction(form({ ruleId: unused.id }));
+    expect(await db.consequenceRule.findUnique({ where: { id: used.id } })).not.toBeNull();
+    expect(await db.consequenceRule.findUnique({ where: { id: unused.id } })).toBeNull();
+    expect((await db.eventRule.findMany({ where: { eventId: ev.id } })).map((r) => r.ruleId)).toEqual([used.id]);
+    expect((await db.consequence.findUniqueOrThrow({ where: { id: c.id } })).ruleId).toBe(used.id);
   });
 });
 

@@ -32,7 +32,8 @@ forms) can grant any position other than Member.
 | Check in by scanning the session QR | - | Yes | Yes | Yes | Yes | Yes | - | Yes |
 | Post announcements (targeted); upload / remove documents | - | Yes | Yes | - | - | - | - | - |
 | Document audit trail | - | Yes | - | - | - | - | Yes | - |
-| Configure consequence rules, review / correct consequences | - | Yes | - | - | - | - | - | - |
+| Consequence rules: create, edit, activate / deactivate, delete (unused rules only) | - | Yes | Yes | - | - | - | - | - |
+| Record, review / correct consequences | - | Yes | - | - | - | - | - | - |
 | Waive a consequence | - | Yes | - | - | - | - | - | - |
 | View organization consequences | - | Yes | Yes | - | - | Yes | Yes | - |
 | Create & run evaluations; view aggregate results | - | Yes | Yes | - | - | Yes | results only | - |

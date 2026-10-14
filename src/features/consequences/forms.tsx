@@ -2,35 +2,43 @@
 
 import { useActionState, useState } from "react";
 import { Field, inputClass, Notice, primaryButton } from "@/components/shared/ui";
-import { createConsequenceAction, createRuleAction, type ConsequenceState } from "./actions";
+import { createConsequenceAction, createRuleAction, updateRuleAction, type ConsequenceState } from "./actions";
 
 type Opt = { id: string; label: string };
 
-export function RuleForm({ organizationId }: { organizationId: string }) {
-  const [state, action, pending] = useActionState<ConsequenceState, FormData>(createRuleAction, {});
-  const [penalty, setPenalty] = useState("FINE");
+/** Values of an existing rule, as plain strings, to edit it. */
+export type RuleValues = {
+  id: string; name: string; description: string; trigger: string; sessionKind: string; wholeDay: boolean;
+  penaltyType: string; fineAmount: string; serviceHours: string;
+};
+
+export function RuleForm({ organizationId, rule }: { organizationId: string; rule?: RuleValues }) {
+  const [state, action, pending] = useActionState<ConsequenceState, FormData>(rule ? updateRuleAction : createRuleAction, {});
+  const [penalty, setPenalty] = useState(rule?.penaltyType ?? "FINE");
+  const f = rule ? `rule-${rule.id}` : "rule"; // unique ids when several forms are on the page
   return (
     <form action={action} className="grid max-w-xl gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card sm:grid-cols-2">
-      <h3 className="font-medium sm:col-span-2">Add a consequence rule</h3>
+      <h3 className="font-medium sm:col-span-2">{rule ? "Edit consequence rule" : "Add a consequence rule"}</h3>
       {state.error && <div className="sm:col-span-2"><Notice kind="error">{state.error}</Notice></div>}
       {state.success && <div className="sm:col-span-2"><Notice kind="success">{state.success}</Notice></div>}
-      <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="sm:col-span-2"><Field id="rule-name" label="Rule name"><input id="rule-name" name="name" required className={inputClass} placeholder="e.g. Missed session" /></Field></div>
-      <Field id="rule-trigger" label="Applies when the student is">
-        <select id="rule-trigger" name="trigger" className={inputClass}><option value="ABSENT">Absent (unexcused)</option><option value="LATE">Late</option></select>
+      {rule ? <input type="hidden" name="ruleId" value={rule.id} /> : <input type="hidden" name="organizationId" value={organizationId} />}
+      <div className="sm:col-span-2"><Field id={`${f}-name`} label="Rule name"><input id={`${f}-name`} name="name" required defaultValue={rule?.name} className={inputClass} placeholder="e.g. Missed session" /></Field></div>
+      <Field id={`${f}-trigger`} label="Applies when the student is">
+        <select id={`${f}-trigger`} name="trigger" defaultValue={rule?.trigger} className={inputClass}><option value="ABSENT">Absent (unexcused)</option><option value="LATE">Late</option></select>
       </Field>
-      <Field id="rule-kind" label="Session type">
-        <select id="rule-kind" name="sessionKind" className={inputClass}><option value="">Any session</option><option value="TIME_IN">Time-in only</option><option value="TIME_OUT">Time-out only</option></select>
+      <Field id={`${f}-kind`} label="Session type">
+        <select id={`${f}-kind`} name="sessionKind" defaultValue={rule?.sessionKind} className={inputClass}><option value="">Any session</option><option value="TIME_IN">Time-in only</option><option value="TIME_OUT">Time-out only</option></select>
       </Field>
-      <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="wholeDay" /> Whole-day rule: only when absent from every session of the event</label>
-      <Field id="rule-penalty" label="Consequence">
-        <select id="rule-penalty" name="penaltyType" value={penalty} onChange={(e) => setPenalty(e.target.value)} className={inputClass}><option value="FINE">Fine (PHP)</option><option value="SERVICE_HOURS">Community service</option></select>
+      <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="wholeDay" defaultChecked={rule?.wholeDay} /> Whole-day rule: only when absent from every session of the event</label>
+      <Field id={`${f}-penalty`} label="Consequence">
+        <select id={`${f}-penalty`} name="penaltyType" value={penalty} onChange={(e) => setPenalty(e.target.value)} className={inputClass}><option value="FINE">Fine (PHP)</option><option value="SERVICE_HOURS">Community service</option></select>
       </Field>
       {penalty === "FINE"
-        ? <Field id="rule-amount" label="Fine amount (PHP)"><input id="rule-amount" name="fineAmount" inputMode="decimal" required className={inputClass} /></Field>
-        : <Field id="rule-hours" label="Service hours"><input id="rule-hours" name="serviceHours" inputMode="decimal" required className={inputClass} /></Field>}
-      <div className="sm:col-span-2"><Field id="rule-desc" label="Notes (optional)"><input id="rule-desc" name="description" className={inputClass} /></Field></div>
-      <button type="submit" disabled={pending} className={`${primaryButton} self-start`}>{pending ? "Adding…" : "Add rule"}</button>
+        ? <Field id={`${f}-amount`} label="Fine amount (PHP)"><input id={`${f}-amount`} name="fineAmount" inputMode="decimal" required defaultValue={rule?.fineAmount} className={inputClass} /></Field>
+        : <Field id={`${f}-hours`} label="Service hours"><input id={`${f}-hours`} name="serviceHours" inputMode="decimal" required defaultValue={rule?.serviceHours} className={inputClass} /></Field>}
+      <div className="sm:col-span-2"><Field id={`${f}-desc`} label="Notes (optional)"><input id={`${f}-desc`} name="description" defaultValue={rule?.description} className={inputClass} /></Field></div>
+      {rule && <p className="text-xs text-muted sm:col-span-2">Changes apply to sessions finalized from now on. Consequences already recorded keep their penalty.</p>}
+      <button type="submit" disabled={pending} className={`${primaryButton} self-start`}>{pending ? (rule ? "Saving…" : "Adding…") : rule ? "Save rule" : "Add rule"}</button>
     </form>
   );
 }
