@@ -5,7 +5,7 @@ import { ModalButton } from "@/components/shared/modal";
 import { db } from "@/lib/database/client";
 import { canOrg, orgIdsWith, requireOrgPermissionAnywhere } from "@/lib/permissions";
 import { formatDate, formatPeso } from "@/lib/format";
-import { toggleRuleAction, updateConsequenceStatusAction } from "@/features/consequences/actions";
+import { deleteRuleAction, toggleRuleAction, updateConsequenceStatusAction } from "@/features/consequences/actions";
 import { ConsequenceForm, RuleForm } from "@/features/consequences/forms";
 import { ConfirmButton, RefreshOnSubmit } from "@/components/shared/confirm-button";
 
@@ -26,9 +26,11 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
 
   const viewIds = orgIdsWith(user, "consequences.view_org");
   const orgNames = new Map(user.memberships.map((m) => [m.organizationId, m.organizationName]));
-  const orgId = viewIds.includes(sp.org ?? "") ? sp.org! : viewIds[0];
+  // Without a choice, open an organization where the person can manage rules (not one where they only view).
+  const orgId = viewIds.includes(sp.org ?? "") ? sp.org! : (viewIds.find((id) => canOrg(user, "consequences.rules", id)) ?? viewIds[0]);
   const status = (["PENDING", "COMPLETED", "WAIVED", "CANCELLED"] as const).find((s) => s === sp.status);
   const manage = orgId ? canOrg(user, "consequences.manage", orgId) : false;
+  const manageRules = orgId ? canOrg(user, "consequences.rules", orgId) : false;
   const waive = orgId ? canOrg(user, "consequences.waive", orgId) : false;
 
   const org = orgId ? await (async () => {
@@ -39,7 +41,7 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
         where, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
         select: { id: true, reason: true, status: true, createdAt: true, kind: true, amount: true, hours: true, calculatedAt: true, user: { select: { firstName: true, lastName: true } }, rule: { select: { name: true } }, event: { select: { title: true } } },
       }),
-      db.consequenceRule.findMany({ where: { organizationId: orgId }, orderBy: { name: "asc" } }),
+      db.consequenceRule.findMany({ where: { organizationId: orgId }, orderBy: { name: "asc" }, include: { _count: { select: { consequences: true } } } }),
       manage ? db.organizationMember.findMany({ where: { organizationId: orgId, endedAt: null }, select: { user: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { user: { lastName: "asc" } } }) : [],
       manage ? db.event.findMany({ where: { organizationId: orgId }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
     ]);
@@ -48,17 +50,17 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
 
   return (
     <Page>
-      <PageHeader title="Manage Consequences" subtitle="Official, policy-based records for your organization. An absence or an unfinished obligation is not a consequence until it is reviewed and recorded here, or until a rule your organization attached to the event applies." actions={manage && org && orgId && (
+      <PageHeader title="Manage Consequences" subtitle="Official, policy-based records for your organization. An absence or an unfinished obligation is not a consequence until it is reviewed and recorded here, or until a rule your organization attached to the event applies." actions={(manage || manageRules) && org && orgId && (
         <>
-          <ModalButton label="+ Record consequence" variant="primary" title="Record a consequence" description="An official, policy-based record. Give the reason and any supporting detail." size="md">
+          {manage && <ModalButton label="+ Record consequence" variant="primary" title="Record a consequence" description="An official, policy-based record. Give the reason and any supporting detail." size="md">
             <ConsequenceForm
               organizationId={orgId}
               members={org.members.map((m) => ({ id: m.user.id, label: `${m.user.lastName}, ${m.user.firstName}` }))}
               rules={org.rules.filter((r) => r.active).map((r) => ({ id: r.id, label: r.name }))}
               events={org.events.map((e) => ({ id: e.id, label: e.title }))}
             />
-          </ModalButton>
-          <ModalButton label="+ Add rule" title="Add a consequence rule" description="Rules apply only to events they are attached to." size="md"><RuleForm organizationId={orgId} /></ModalButton>
+          </ModalButton>}
+          {manageRules && <ModalButton label="+ Add rule" title="Add a consequence rule" description="Rules apply only to events they are attached to." size="md"><RuleForm organizationId={orgId} /></ModalButton>}
         </>
       )} />
 
@@ -115,7 +117,23 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
                 {org.rules.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-3">
                     <span>{r.name} <span className="text-muted">— {r.trigger === "ABSENT" ? "absent" : "late"}{r.sessionKind ? `, ${r.sessionKind === "TIME_IN" ? "time-in" : "time-out"} only` : ""}{r.wholeDay ? ", whole day" : ""}: {r.penaltyType === "FINE" ? formatPeso(r.fineAmount?.toString() ?? "0") : `${r.serviceHours?.toString()} service hr`}</span>{r.description ? <span className="text-muted"> · {r.description}</span> : null} {!r.active && <Badge>Inactive</Badge>}</span>
-                    {manage && <form action={toggleRuleAction}><RefreshOnSubmit /><input type="hidden" name="ruleId" value={r.id} /><button type="submit" className="text-primary hover:underline">{r.active ? "Deactivate" : "Activate"}</button></form>}
+                    {manageRules && (
+                      <span className="flex shrink-0 items-center gap-3">
+                        <ModalButton label="Edit" variant="link" title="Edit consequence rule" size="md">
+                          <RuleForm organizationId={orgId} rule={{
+                            id: r.id, name: r.name, description: r.description ?? "", trigger: r.trigger, sessionKind: r.sessionKind ?? "", wholeDay: r.wholeDay,
+                            penaltyType: r.penaltyType, fineAmount: r.fineAmount?.toString() ?? "", serviceHours: r.serviceHours?.toString() ?? "",
+                          }} />
+                        </ModalButton>
+                        <form action={toggleRuleAction}><RefreshOnSubmit /><input type="hidden" name="ruleId" value={r.id} /><button type="submit" className="text-primary hover:underline">{r.active ? "Deactivate" : "Activate"}</button></form>
+                        {r._count.consequences === 0 && (
+                          <form action={deleteRuleAction}>
+                            <input type="hidden" name="ruleId" value={r.id} />
+                            <ConfirmButton message={`Delete the rule "${r.name}"? It is also removed from any event it is attached to.`} className="text-danger hover:underline">Delete</ConfirmButton>
+                          </form>
+                        )}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

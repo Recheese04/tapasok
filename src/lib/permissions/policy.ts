@@ -45,7 +45,8 @@ export const ORG_POLICY = {
   "documents.manage": ["PRESIDENT", "SECRETARY"],
   // Obligations, consequences, evaluations, finance
   "obligations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"], // assign, verify completion, cancel
-  "consequences.manage": ["PRESIDENT"], // configure rules, review, correct
+  "consequences.rules": ["PRESIDENT", "SECRETARY"], // create, edit, activate/deactivate and delete consequence rules
+  "consequences.manage": ["PRESIDENT"], // record, review and correct consequences
   "consequences.waive": ["PRESIDENT"],
   "evaluations.manage": ["PRESIDENT", "SECRETARY", "OFFICER"],
   "fees.manage": ["PRESIDENT", "TREASURER"], // create fees, assess, record cash, verify digital payments, adjust, void

@@ -24,7 +24,7 @@ import { adjustLedgerAction, assessMemberAction, assignFeeAction, createFeeTypeA
 import { decideFundAction, recordFundAction, reverseFundAction } from "@/features/finance/actions";
 import { createEvaluationAction } from "@/features/evaluations/actions";
 import { cancelObligationAction, completeObligationAction, createObligationAction } from "@/features/obligations/actions";
-import { createRuleAction, updateConsequenceStatusAction } from "@/features/consequences/actions";
+import { createRuleAction, deleteRuleAction, toggleRuleAction, updateConsequenceStatusAction, updateRuleAction } from "@/features/consequences/actions";
 import { removeDocumentAction } from "@/features/documents/actions";
 import { endMembershipAction, changeMemberRoleAction, addMemberAction } from "@/features/organizations/actions";
 import { generateJoinCodeAction } from "@/features/organizations/join-actions";
@@ -114,7 +114,7 @@ describe("the Adviser is strictly read-only", () => {
     const adviserCaps = (Object.keys(ORG_POLICY) as OrgPermission[]).filter((p) => (ORG_POLICY[p] as readonly string[]).includes("ADVISER"));
     for (const p of adviserCaps) expect([...READ_ONLY_CAPABILITIES, ...ADVISER_WRITE_EXCEPTIONS] as readonly string[], p).toContain(p);
     expect(ADVISER_WRITE_EXCEPTIONS).toEqual(["officers.designate"]);
-    for (const p of ["attendance.scan", "attendance.manual", "attendance.excuse", "devices.manage", "members.manage", "events.manage", "fees.manage", "expenses.record", "expenses.approve", "consequences.manage", "consequences.waive"] as const) {
+    for (const p of ["attendance.scan", "attendance.manual", "attendance.excuse", "devices.manage", "members.manage", "events.manage", "fees.manage", "expenses.record", "expenses.approve", "consequences.rules", "consequences.manage", "consequences.waive"] as const) {
       expect(ORG_POLICY[p] as readonly string[], p).not.toContain("ADVISER");
     }
   });
@@ -131,6 +131,7 @@ describe("the Adviser is strictly read-only", () => {
     const pay = await db.payment.create({ data: { studentFeeId: fee.id, amount: 40, method: "GCASH", status: "PENDING", receiptCode: "TPK-R-1", reference: "X" } });
     const fund = await db.fundTransaction.create({ data: { organizationId: w.orgA.id, type: "EXPENSE", title: "Tarp", amount: 10, category: "PRINTING", occurredOn: new Date(), purpose: "x", recordedById: w.a.TREASURER.id, requestId: "r-1" } });
     const rec = await db.attendanceRecord.create({ data: { eventId: ev.id, sessionId: ev.session.id, userId: w.a.MEMBER.id, status: "ABSENT", source: "SYSTEM" } });
+    const rule = await db.consequenceRule.create({ data: { organizationId: w.orgA.id, name: "Absent fine", fineAmount: 50 } });
     const ob = await db.obligation.create({ data: { organizationId: w.orgA.id, userId: w.a.MEMBER.id, title: "Clean up" } }).catch(() => null);
     const before = await Promise.all([db.event.count(), db.announcement.count(), db.attendanceRecord.count(), db.scannerDevice.count({ where: { active: true } }), db.fundTransaction.count({ where: { status: "PENDING" } }), db.payment.count({ where: { status: "PENDING" } }), db.joinRequest.count({ where: { status: "PENDING" } }), db.organizationMember.count(), db.feeType.count(), db.studentFee.count(), db.consequenceRule.count(), db.evaluationForm.count(), db.organizationJoinCode.count()]);
 
@@ -171,6 +172,9 @@ describe("the Adviser is strictly read-only", () => {
       ["obligation", () => createObligationAction({}, form({ organizationId: O, title: "Task", userIds: w.a.MEMBER.id }))],
       ...(ob ? [["complete obligation", () => completeObligationAction(form({ obligationId: ob.id }))], ["cancel obligation", () => cancelObligationAction(form({ obligationId: ob.id }))]] as [string, () => Promise<unknown>][] : []),
       ["consequence rule", () => createRuleAction({}, form({ organizationId: O, name: "Late fine", fineAmount: "20" }))],
+      ["edit rule", () => updateRuleAction({}, form({ ruleId: rule.id, name: "Changed", fineAmount: "99" }))],
+      ["deactivate rule", () => toggleRuleAction(form({ ruleId: rule.id }))],
+      ["delete rule", () => deleteRuleAction(form({ ruleId: rule.id }))],
       ["waive consequence", () => updateConsequenceStatusAction(form({ consequenceId: "00000000-0000-4000-8000-000000000000", status: "WAIVED", note: "x" }))],
       ["remove document", () => removeDocumentAction(form({ documentId: "00000000-0000-4000-8000-000000000000" }))],
     ];
@@ -198,6 +202,7 @@ describe("the Adviser is strictly read-only", () => {
     const after = await Promise.all([db.event.count(), db.announcement.count(), db.attendanceRecord.count(), db.scannerDevice.count({ where: { active: true } }), db.fundTransaction.count({ where: { status: "PENDING" } }), db.payment.count({ where: { status: "PENDING" } }), db.joinRequest.count({ where: { status: "PENDING" } }), db.organizationMember.count(), db.feeType.count(), db.studentFee.count(), db.consequenceRule.count(), db.evaluationForm.count(), db.organizationJoinCode.count()]);
     expect(after).toEqual(before);
     expect(await db.event.findUniqueOrThrow({ where: { id: ev.id } })).toMatchObject({ title: ev.title, status: "PUBLISHED" });
+    expect(await db.consequenceRule.findUniqueOrThrow({ where: { id: rule.id } })).toMatchObject({ name: "Absent fine", active: true });
     expect(await db.eventSession.findUniqueOrThrow({ where: { id: S } })).toMatchObject({ active: true, finalizedAt: null });
     expect((await db.attendanceRecord.findUniqueOrThrow({ where: { id: rec.id } })).status).toBe("ABSENT");
     // the only thing recorded in the adviser's name is their own sign-in to the app

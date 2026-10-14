@@ -13,12 +13,12 @@ export type ConsequenceState = { error?: string; success?: string };
 
 const uuid = z.uuid();
 
-// Rules are configured by consequences.manage (President; the Adviser is read-only). The organization's real rules are
-// examples-free: nothing is created or charged unless an authorized person defines and attaches a rule.
-export async function createRuleAction(_prev: ConsequenceState, fd: FormData): Promise<ConsequenceState> {
-  const orgId = uuid.safeParse(fd.get("organizationId"));
-  if (!orgId.success) return { error: "Choose an organization." };
-  const actor = await assertOrgPermission("consequences.manage", orgId.data);
+// Rules are configured by consequences.rules (President and Secretary; the Adviser is read-only). Recording, completing and
+// waiving consequences are separate capabilities. The organization's real rules are examples-free: nothing is created or
+// charged unless an authorized person defines and attaches a rule.
+type RuleFields = Omit<Prisma.ConsequenceRuleUncheckedCreateInput, "id" | "organizationId" | "active" | "createdAt">;
+
+function parseRule(fd: FormData): { error: string } | { data: RuleFields } {
   const name = z.string().trim().min(3, "Rule name is required.").max(120).safeParse(fd.get("name"));
   if (!name.success) return { error: name.error.issues[0].message };
   const trigger = z.enum(["ABSENT", "LATE"]).safeParse(fd.get("trigger") || "ABSENT");
@@ -39,26 +39,69 @@ export async function createRuleAction(_prev: ConsequenceState, fd: FormData): P
     serviceHours = new Prisma.Decimal(hours.toFixed(1));
   }
   const description = (fd.get("description") ?? "").toString().trim().slice(0, 500) || null;
+  return { data: { name: name.data, description, trigger: trigger.data, penaltyType: penaltyType.data, sessionKind: sessionKind.data || null, wholeDay, fineAmount, serviceHours } };
+}
+
+const isDuplicateName = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+
+/** Loads a rule and checks consequences.rules in the rule's own organization (never one taken from the form). */
+async function ruleForEdit(fd: FormData) {
+  const id = uuid.safeParse(fd.get("ruleId"));
+  if (!id.success) return null;
+  const rule = await db.consequenceRule.findUnique({ where: { id: id.data } });
+  if (!rule) return null;
+  const actor = await assertOrgPermission("consequences.rules", rule.organizationId);
+  return { rule, actor };
+}
+
+export async function createRuleAction(_prev: ConsequenceState, fd: FormData): Promise<ConsequenceState> {
+  const orgId = uuid.safeParse(fd.get("organizationId"));
+  if (!orgId.success) return { error: "Choose an organization." };
+  const actor = await assertOrgPermission("consequences.rules", orgId.data);
+  const parsed = parseRule(fd);
+  if ("error" in parsed) return { error: parsed.error };
   try {
-    const rule = await db.consequenceRule.create({
-      data: { organizationId: orgId.data, name: name.data, description, trigger: trigger.data, penaltyType: penaltyType.data, sessionKind: sessionKind.data || null, wholeDay, fineAmount, serviceHours },
-    });
+    const rule = await db.consequenceRule.create({ data: { organizationId: orgId.data, ...parsed.data } });
     await db.auditLog.create({ data: { actorUserId: actor.id, action: "consequence_rule.create", targetType: "consequence_rule", targetId: rule.id } });
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { error: "A rule with this name already exists." };
+    if (isDuplicateName(e)) return { error: "A rule with this name already exists." };
     throw e;
   }
   return { success: "Rule added. Attach it to an event to apply it." };
 }
 
+/** Changes apply to sessions finalized afterwards; consequences already recorded keep the penalty they copied. */
+export async function updateRuleAction(_prev: ConsequenceState, fd: FormData): Promise<ConsequenceState> {
+  const found = await ruleForEdit(fd);
+  if (!found) return { error: "That rule no longer exists." };
+  const parsed = parseRule(fd);
+  if ("error" in parsed) return { error: parsed.error };
+  try {
+    await db.consequenceRule.update({ where: { id: found.rule.id }, data: parsed.data });
+  } catch (e) {
+    if (isDuplicateName(e)) return { error: "A rule with this name already exists." };
+    throw e;
+  }
+  await db.auditLog.create({ data: { actorUserId: found.actor.id, action: "consequence_rule.update", targetType: "consequence_rule", targetId: found.rule.id } });
+  return { success: "Rule saved." };
+}
+
 export async function toggleRuleAction(fd: FormData) {
-  const id = uuid.safeParse(fd.get("ruleId"));
-  if (!id.success) return;
-  const rule = await db.consequenceRule.findUnique({ where: { id: id.data } });
-  if (!rule) return;
-  const actor = await assertOrgPermission("consequences.manage", rule.organizationId);
+  const found = await ruleForEdit(fd);
+  if (!found) return;
+  const { rule, actor } = found;
   await db.consequenceRule.update({ where: { id: rule.id }, data: { active: !rule.active } });
   await db.auditLog.create({ data: { actorUserId: actor.id, action: rule.active ? "consequence_rule.deactivate" : "consequence_rule.activate", targetType: "consequence_rule", targetId: rule.id } });
+}
+
+/** Only a rule that never produced a consequence can be deleted (records keep their policy); otherwise deactivate it.
+ *  Deleting also detaches it from events. */
+export async function deleteRuleAction(fd: FormData) {
+  const found = await ruleForEdit(fd);
+  if (!found) return;
+  const { rule, actor } = found;
+  const { count } = await db.consequenceRule.deleteMany({ where: { id: rule.id, consequences: { none: {} } } });
+  if (count) await db.auditLog.create({ data: { actorUserId: actor.id, action: "consequence_rule.delete", targetType: "consequence_rule", targetId: rule.id, metadata: { name: rule.name } } });
 }
 
 export async function createConsequenceAction(_prev: ConsequenceState, fd: FormData): Promise<ConsequenceState> {
