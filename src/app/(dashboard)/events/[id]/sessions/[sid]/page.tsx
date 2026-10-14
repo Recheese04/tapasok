@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge, Page, PageHeader, Table, Td } from "@/components/shared/ui";
+import { Badge, ButtonLink, Page, PageHeader, Table, Td } from "@/components/shared/ui";
 import { requireUser } from "@/lib/auth/dal";
 import { formatDateTime } from "@/lib/format";
 import { getSessionRoster } from "@/features/attendance/queries";
@@ -28,7 +28,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
 
   return (
     <Page>
-      <PageHeader title={`${event.title} — ${session.label}`} subtitle={`${event.organization.name} · Venue: ${event.venue} · ${formatDateTime(session.opensAt)} – ${formatDateTime(session.closesAt)}${session.finalizedAt ? " · finalized" : ""}`} />
+      <PageHeader title={`${event.title} — ${session.label}`} subtitle={`${event.organization.name} · Venue: ${event.venue} · ${formatDateTime(session.opensAt)} – ${formatDateTime(session.closesAt)}${session.finalizedAt ? " · finalized" : ""}`} actions={!session.finalizedAt && event.status === "PUBLISHED" ? <ButtonLink href={`/attendance/live?session=${session.id}`}>Live monitor</ButtonLink> : undefined} />
       {can.scan && <SessionQrPanel sessionId={session.id} active={session.active} finalized={!!session.finalizedAt} published={event.status === "PUBLISHED"} />}
       <p className="text-sm text-muted">Present {count("PRESENT")} · Late {count("LATE")} · Absent {count("ABSENT")} · Excused {count("EXCUSED")} · Not yet recorded {rows.filter((r) => !r.record).length}</p>
       {rows.length === 0 ? <EmptyState title="No expected attendees" hint="Check the event's target groups and the organization's members." /> : (

@@ -67,3 +67,18 @@ export type FundRecord = {
 };
 export type FundSummary = { collected: string; otherIncome: string; expenses: string; available: string; pendingExpenses: string; pendingExpenseCount: number; pendingIncome: string; pendingIncomeCount: number };
 export type OrgExpenses = { canRecord: boolean; canApprove: boolean; me: string; summary: FundSummary; records: FundRecord[] };
+
+export type LiveCheckIn = {
+  id: string; userId: string; name: string; studentNumber: string | null; program: string | null; yearLevel: number | null;
+  status: "PRESENT" | "LATE"; source: string; at: string; time: string; hasPhoto: boolean;
+};
+export type LiveRejection = { id: string; code: string; message: string; name: string | null; studentNumber: string | null; device: string; cardTail: string | null; at: string; time: string };
+export type LiveData = {
+  session: { id: string; label: string; state: "open" | "not_activated" | "not_started" | "ended" | "finalized" | "unpublished"; opensAt: string; closesAt: string; window: string; lateAfter: string };
+  event: { id: string; title: string; venue: string | null; organization: string; organizationId: string };
+  totals: { present: number; late: number; absent: number; excused: number; expected: number };
+  checkIns: LiveCheckIn[];
+  rejections: LiveRejection[];
+  terminals: { name: string; lastSeenAt: string | null }[];
+  serverTime: string;
+};

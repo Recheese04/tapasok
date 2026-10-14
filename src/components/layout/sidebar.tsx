@@ -11,7 +11,7 @@ import { Icon, type IconName } from "./icons";
 // Decorative icon per destination. Labels always remain visible next to them.
 const ICONS: Record<string, IconName> = {
   "/dashboard": "home", "/notifications": "bell", "/users": "users", "/academic": "academic", "/organizations": "building", "/reports": "chart",
-  "/events": "calendar", "/attendance/records": "clipboard", "/obligations/manage": "task", "/consequences/manage": "alert", "/organizations/manage": "users",
+  "/events": "calendar", "/attendance/live": "scan", "/attendance/records": "clipboard", "/obligations/manage": "task", "/consequences/manage": "alert", "/organizations/manage": "users",
   "/fees/manage": "wallet", "/attendance/scan": "scan", "/attendance": "check", "/obligations": "task", "/consequences": "alert", "/fees": "wallet",
   "/settings": "settings", "/announcements": "megaphone", "/documents": "file", "/evaluations": "star",
 };

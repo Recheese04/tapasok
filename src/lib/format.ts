@@ -6,6 +6,10 @@ export const formatDateTime = (d: Date) =>
 
 export const formatDate = (d: Date) => new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: TZ }).format(d);
 
+/** Time of day in school time, e.g. "2:05:33 PM" (seconds optional). */
+export const formatTimeSeconds = (d: Date, seconds = true) =>
+  new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hour12: true, timeZone: TZ }).format(d);
+
 export const formatPeso = (n: number | string | { toString(): string }) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n.toString()));
 

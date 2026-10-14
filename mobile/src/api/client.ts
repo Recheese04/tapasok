@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import type { JoinableOrg, MyJoinRequest, OrgExpenses, MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
+import type { JoinableOrg, LiveData, MyJoinRequest, OrgExpenses, MemberDetail, ManagedAnnouncement, ManagedEvent, OrgDocument, OrgFinance, OrgMember, OrgOverview, Announcement, AttendanceRecord, EventDetail, EventsPage, Fee, Home, Me, Notice, Organization, ScanResult, ScanSession } from "./types";
 
 const BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 const TOKEN_KEY = "tapasok_token";
@@ -22,6 +22,9 @@ export const secureDelete = async (k: string) => (Platform.OS === "web" ? void g
 export const loadToken = async () => (memoryToken = await secureGet(TOKEN_KEY));
 export const saveToken = async (t: string) => { memoryToken = t; await secureSet(TOKEN_KEY, t); };
 export const clearToken = async () => { memoryToken = null; await secureDelete(TOKEN_KEY); };
+
+/** An image source for a private, signed-in image (e.g. a member's photo): the URL plus the Bearer header. */
+export const authedImage = (path: string) => ({ uri: `${BASE}/api/mobile${path}`, headers: memoryToken ? { Authorization: `Bearer ${memoryToken}` } : undefined });
 
 async function request<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
   if (!BASE) throw new ApiError(0, "CONFIG", "The app is not configured. Set EXPO_PUBLIC_API_BASE_URL.");
@@ -89,5 +92,6 @@ export const api = {
     request<{ ok: true; id: string; duplicate: boolean }>("POST", `/org/${orgId}/expenses`, e),
   decideExpense: (orgId: string, id: string, action: "approve" | "reject" | "cancel" | "reverse", reason?: string) =>
     request<{ ok: true; available?: string }>("POST", `/org/${orgId}/expenses/${id}`, { action, reason }),
+  liveSession: (orgId: string, sessionId: string) => get<LiveData>(`/org/${orgId}/sessions/${sessionId}/live`),
   orgDocuments: (orgId: string) => get<{ canManage: boolean; documents: OrgDocument[] }>(`/org/${orgId}/documents`),
 };

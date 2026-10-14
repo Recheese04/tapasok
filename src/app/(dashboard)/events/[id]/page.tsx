@@ -101,6 +101,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
                         </form>
                       )}
                       {scan && !s.finalizedAt && event.status === "PUBLISHED" && <Link scroll={false} className="text-primary hover:underline" href={`${here}?qr=${s.id}`}>QR Code</Link>}
+                      {oversee && !s.finalizedAt && event.status === "PUBLISHED" && <Link className="text-primary hover:underline" href={`/attendance/live?session=${s.id}`}>Live monitor</Link>}
                       {oversee && <Link className="text-primary hover:underline" href={`/events/${event.id}/sessions/${s.id}`}>Attendance list</Link>}
                       {finalize && !s.finalizedAt && event.status === "PUBLISHED" && (
                         <form action={finalizeSessionAction}>

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authenticateDevice } from "@/features/attendance/devices";
 import { consumeEnrollment } from "@/features/attendance/rfid-enrollment";
 import { MESSAGES, openSessionsFor, rfidTap } from "@/features/attendance/service";
+import { logRejectedTap } from "@/features/attendance/live";
 
 // Integration endpoint for RFID terminals (for example RC522 + NodeMCU over HTTPS).
 //   POST /api/rfid/scan   Authorization: Bearer <device key>
@@ -35,19 +36,26 @@ export async function POST(request: Request) {
   }
 
   // No session named by the terminal: use the one session an officer has activated for this terminal's organization.
+  const cardUid = parsed.data.cardUid.replace(/[\s:-]/g, "").toUpperCase();
   let sessionId = parsed.data.sessionId;
   let sessionName: string | undefined;
   if (!sessionId) {
     const open = await openSessionsFor(device.organizationId);
-    if (open.length === 0) return NextResponse.json({ ok: false, code: "no_open_session", message: "No attendance is open right now. An officer must open check-in for the session (Activate scanner on the website, or Open in the app)." }, { status: 422 });
+    if (open.length === 0) {
+      await logRejectedTap(device, "no_open_session", cardUid, null);
+      return NextResponse.json({ ok: false, code: "no_open_session", message: "No attendance is open right now. An officer must open check-in for the session (Activate scanner on the website, or Open in the app)." }, { status: 422 });
+    }
     if (open.length > 1) {
       const names = open.map((s) => `${s.event.title} (${s.label})`).join(", ");
+      await logRejectedTap(device, "several_open_sessions", cardUid, null);
       return NextResponse.json({ ok: false, code: "several_open_sessions", message: `More than one session is open: ${names}. Deactivate the one not in use.` }, { status: 409 });
     }
     sessionId = open[0].id;
     sessionName = `${open[0].event.title} · ${open[0].label}`;
   }
-  const res = await rfidTap(device, sessionId, parsed.data.cardUid.replace(/[\s:-]/g, ""));
+  const res = await rfidTap(device, sessionId, cardUid);
   if (res.ok) return NextResponse.json({ ok: true, status: res.status, name: res.firstName, ...(sessionName ? { session: sessionName } : {}) });
+  // Refused taps are logged (never as attendance) so the officers' live monitor can show why a tap did not count.
+  await logRejectedTap(device, res.reason, cardUid, sessionId);
   return NextResponse.json({ ok: false, code: res.reason, message: MESSAGES[res.reason] }, { status: res.reason === "duplicate" ? 200 : 422 });
 }

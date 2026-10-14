@@ -49,6 +49,7 @@ const RULES: Rule[] = [
   { label: "Reports", href: "/reports", section: "admin", visible: (u) => canSystem(u, "reports.system") },
 
   { label: "Events & QR", href: "/events", section: "manage", visible: anyPerm("events.manage", "attendance.scan") },
+  { label: "Live Attendance", href: "/attendance/live", section: "manage", visible: orgPerm("attendance.view_org") },
   { label: "Attendance Records", href: "/attendance/records", section: "manage", visible: orgPerm("attendance.view_org") },
   { label: "Manage Obligations", href: "/obligations/manage", section: "manage", visible: orgPerm("obligations.view_org") },
   { label: "Manage Consequences", href: "/consequences/manage", section: "manage", visible: orgPerm("consequences.view_org") },

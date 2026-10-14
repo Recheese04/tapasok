@@ -90,6 +90,7 @@ export default function ManageEvents() {
                           <Txt variant="bodyStrong">{x.label}</Txt>
                           <Txt variant="small" color={x.finalized ? colors.textMuted : x.active ? colors.successInk : colors.textMuted}>{x.finalized ? "Finalized" : x.active ? "Open — members can scan" : "Closed"}</Txt>
                         </View>
+                        {x.finalized ? null : <Button label="Live" size="sm" variant="secondary" icon="radio" onPress={() => router.push({ pathname: "/manage/live/[sessionId]", params: { sessionId: x.id } })} />}
                         {x.finalized ? null : <Button label={x.active ? "Close" : "Open"} size="sm" variant={x.active ? "danger" : "primary"} disabled={busy} onPress={() => void run(() => api.setSessionActive(orgId, e.id, x.id, !x.active), x.active ? "Check-in closed" : "Check-in is open")} />}
                       </View>
                     ))}
