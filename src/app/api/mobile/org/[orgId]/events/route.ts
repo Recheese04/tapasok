@@ -7,7 +7,7 @@ import { createEvent } from "@/features/events/service";
 /** The organization's events with drafts, sessions and attendance counts (events.manage). */
 export const GET = orgAuthed("events.manage", async (_user, _request, orgId) => {
   const events = await db.event.findMany({
-    where: { organizationId: orgId }, orderBy: { startsAt: "desc" }, take: 40,
+    where: { organizationId: orgId, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 40,
     select: {
       id: true, title: true, venue: true, status: true, startsAt: true, endsAt: true,
       sessions: { orderBy: { position: "asc" }, select: { id: true, label: true, active: true, finalizedAt: true } },

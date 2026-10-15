@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/components/shared/confirm-button";
-import { deleteAnnouncementAction } from "@/features/announcements/actions";
+import { deleteAnnouncementAction, restoreAnnouncementAction } from "@/features/announcements/actions";
+import { DeletedList } from "@/components/shared/deleted-list";
+import { deleterNames, recentlyRestored } from "@/lib/database/soft-delete";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/shared/pagination";
 import { Badge, ButtonLink, Card, Page, PageHeader } from "@/components/shared/ui";
@@ -19,6 +21,7 @@ export default async function AnnouncementsPage({ searchParams }: { searchParams
   const page = parsePage((await searchParams).page);
   const manageIds = orgIdsWith(user, "announcements.manage");
   const where = {
+    deletedAt: null,
     organizationId: { in: orgIdsWith(user, "announcements.view") },
     OR: [{ status: "PUBLISHED" as const }, { organizationId: { in: manageIds } }],
   };
@@ -34,6 +37,11 @@ export default async function AnnouncementsPage({ searchParams }: { searchParams
   }
   const total = visible.length;
   const rows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const deleted = manageIds.length ? await db.announcement.findMany({
+    where: { organizationId: { in: manageIds }, deletedAt: { not: null } }, orderBy: { deletedAt: "desc" }, take: 50,
+    select: { id: true, title: true, deletedAt: true, deletedById: true, organization: { select: { name: true } } },
+  }) : [];
+  const deleters = await deleterNames(deleted.map((d) => d.deletedById));
 
   return (
     <Page>
@@ -46,9 +54,10 @@ export default async function AnnouncementsPage({ searchParams }: { searchParams
                 <h2 className="font-medium">{a.title}</h2>
                 <div className="flex items-center gap-2">
                   {a.status === "DRAFT" && <Badge tone="amber">Draft</Badge>}
+                  {recentlyRestored(a.restoredAt) && canOrg(user, "announcements.manage", a.organizationId) && <Badge tone="purple">Restored</Badge>}
                   {a.targetMode === "FILTERED" && <Badge>Targeted</Badge>}
                   {canOrg(user, "announcements.manage", a.organizationId) && <><Link className="text-sm text-primary hover:underline" href={`/announcements/${a.id}`}>Edit</Link>
-                    <form action={deleteAnnouncementAction}><input type="hidden" name="announcementId" value={a.id} /><ConfirmButton message={`Delete "${a.title}" permanently?`} className="text-sm text-danger hover:underline">Delete</ConfirmButton></form></>}
+                    <form action={deleteAnnouncementAction}><input type="hidden" name="announcementId" value={a.id} /><ConfirmButton message={`Delete "${a.title}"? It will be hidden from everyone. You can restore it below under "Recently deleted".`} className="text-sm text-danger hover:underline">Delete</ConfirmButton></form></>}
                 </div>
               </div>
               <p className="text-xs text-muted">{a.organization.name} · {a.author ? `${a.author.firstName} ${a.author.lastName} · ` : ""}{formatDateTime(a.publishedAt ?? a.createdAt)}{a.semester ? ` · ${a.semester.schoolYear.label} ${a.semester.name}` : ""}</p>
@@ -58,6 +67,8 @@ export default async function AnnouncementsPage({ searchParams }: { searchParams
         </div>
       )}
       <Pagination page={page} total={total} basePath="/announcements" />
+      <DeletedList noun="announcement" field="announcementId" action={restoreAnnouncementAction}
+        items={deleted.map((d) => ({ id: d.id, title: d.title, detail: d.organization.name, deletedAt: d.deletedAt!, deletedBy: d.deletedById ? deleters.get(d.deletedById) : null }))} />
     </Page>
   );
 }

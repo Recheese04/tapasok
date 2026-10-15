@@ -8,7 +8,7 @@ import { publishNotifications } from "@/features/announcements/service";
 /** Everything this organization has posted, drafts included (announcements.manage). */
 export const GET = orgAuthed("announcements.manage", async (_user, _request, orgId) => {
   const rows = await db.announcement.findMany({
-    where: { organizationId: orgId }, orderBy: { createdAt: "desc" }, take: 50,
+    where: { organizationId: orgId, deletedAt: null }, orderBy: { createdAt: "desc" }, take: 50,
     select: { id: true, title: true, body: true, status: true, publishedAt: true, createdAt: true },
   });
   return json({ announcements: rows.map((a) => ({ id: a.id, title: a.title, body: a.body, status: a.status, at: (a.publishedAt ?? a.createdAt).toISOString() })) });

@@ -76,7 +76,7 @@ export async function createEvent(actorId: string, organizationId: string, input
 
 /** Sessions are locked once any attendance exists (so records keep the windows they were captured under). */
 export async function updateEvent(actorId: string, eventId: string, input: EventInput): Promise<{ ok: true; sessionsLocked: boolean } | Fail> {
-  const existing = await db.event.findUnique({ where: { id: eventId }, select: { organizationId: true, _count: { select: { attendance: true } } } });
+  const existing = await db.event.findFirst({ where: { id: eventId, deletedAt: null }, select: { organizationId: true, _count: { select: { attendance: true } } } });
   if (!existing) return { ok: false, error: "Event not found." };
   const v = await validate(existing.organizationId, input);
   if (!v.ok) return v;

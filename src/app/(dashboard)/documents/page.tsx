@@ -1,12 +1,14 @@
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/shared/pagination";
-import { Page, PageHeader, Table, Td } from "@/components/shared/ui";
+import { Badge, Page, PageHeader, Table, Td } from "@/components/shared/ui";
 import { ModalButton } from "@/components/shared/modal";
 import { ConfirmButton } from "@/components/shared/confirm-button";
 import { db } from "@/lib/database/client";
 import { canOrg, orgIdsWith, requireOrgPermissionAnywhere } from "@/lib/permissions";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { removeDocumentAction } from "@/features/documents/actions";
+import { removeDocumentAction, restoreDocumentAction } from "@/features/documents/actions";
+import { DeletedList } from "@/components/shared/deleted-list";
+import { deleterNames, recentlyRestored } from "@/lib/database/soft-delete";
 import { UploadForm } from "@/features/documents/upload-form";
 import { DocumentEdit } from "@/features/documents/document-edit";
 
@@ -26,7 +28,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
     db.document.count({ where }),
     db.document.findMany({
       where, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
-      select: { id: true, title: true, description: true, fileName: true, sizeBytes: true, createdAt: true, organizationId: true, category: true, organization: { select: { name: true } }, semester: { select: { name: true, schoolYear: { select: { label: true } } } }, event: { select: { title: true } } },
+      select: { id: true, title: true, description: true, fileName: true, sizeBytes: true, createdAt: true, restoredAt: true, organizationId: true, category: true, organization: { select: { name: true } }, semester: { select: { name: true, schoolYear: { select: { label: true } } } }, event: { select: { title: true } } },
     }),
   ]);
   const manageIds = orgIdsWith(user, "documents.manage");
@@ -37,7 +39,12 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const auditDocs = auditOrgIds.length ? await db.document.findMany({ where: { organizationId: { in: auditOrgIds } }, select: { id: true, title: true } }) : [];
   const titles = new Map(auditDocs.map((d) => [d.id, d.title]));
   const audit = auditDocs.length ? await db.auditLog.findMany({ where: { targetType: "document", targetId: { in: auditDocs.map((d) => d.id) } }, orderBy: { createdAt: "desc" }, take: 25, select: { id: true, action: true, targetId: true, createdAt: true, actor: { select: { firstName: true, lastName: true } } } }) : [];
-  const events = manageIds.length ? await db.event.findMany({ where: { organizationId: { in: manageIds } }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [];
+  const deleted = manageIds.length ? await db.document.findMany({
+    where: { organizationId: { in: manageIds }, deletedAt: { not: null } }, orderBy: { deletedAt: "desc" }, take: 50,
+    select: { id: true, title: true, fileName: true, deletedAt: true, deletedById: true, organization: { select: { name: true } } },
+  }) : [];
+  const deleters = await deleterNames(deleted.map((d) => d.deletedById));
+  const events = manageIds.length ? await db.event.findMany({ where: { organizationId: { in: manageIds }, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [];
 
   return (
     <Page>
@@ -46,7 +53,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         <Table head={["Document", "Organization", "File", "Term", "Added", ""]}>
           {rows.map((d) => (
             <tr key={d.id}>
-              <Td><div className="font-medium">{d.title}</div><div className="text-xs text-muted">{CATEGORY[d.category]}{d.event ? ` · ${d.event.title}` : ""}</div>{d.description && <div className="text-xs text-muted">{d.description}</div>}</Td>
+              <Td><div className="flex flex-wrap items-center gap-2 font-medium">{d.title}{recentlyRestored(d.restoredAt) && canOrg(user, "documents.manage", d.organizationId) && <Badge tone="purple">Restored</Badge>}</div><div className="text-xs text-muted">{CATEGORY[d.category]}{d.event ? ` · ${d.event.title}` : ""}</div>{d.description && <div className="text-xs text-muted">{d.description}</div>}</Td>
               <Td>{d.organization.name}</Td>
               <Td>{d.fileName} <span className="text-muted">({size(d.sizeBytes)})</span></Td>
               <Td>{d.semester ? `${d.semester.schoolYear.label} ${d.semester.name}` : "—"}</Td>
@@ -58,7 +65,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                   {canOrg(user, "documents.manage", d.organizationId) && (
                     <form action={removeDocumentAction}>
                       <input type="hidden" name="documentId" value={d.id} />
-                      <ConfirmButton message={`Remove "${d.title}"? It will no longer be available to members.`} className="text-danger hover:underline">Remove</ConfirmButton>
+                      <ConfirmButton message={`Remove "${d.title}"? It will no longer be available to members. You can restore it under "Recently deleted".`} className="text-danger hover:underline">Remove</ConfirmButton>
                     </form>
                   )}
                 </div>
@@ -68,6 +75,8 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         </Table>
       )}
       <Pagination page={page} total={total} basePath="/documents" />
+      <DeletedList noun="document" field="documentId" action={restoreDocumentAction}
+        items={deleted.map((d) => ({ id: d.id, title: d.title, detail: `${d.organization.name} · ${d.fileName}`, deletedAt: d.deletedAt!, deletedBy: d.deletedById ? deleters.get(d.deletedById) : null }))} />
       
       {audit.length > 0 && (
         <section aria-labelledby="doc-audit" className="flex flex-col gap-3">

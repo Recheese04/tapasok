@@ -38,7 +38,7 @@ export async function memberDashboard(user: AuthUser) {
 
   const [upcoming, attended, openEvals, pendingMine, myFees, announcements] = await Promise.all([
     db.event.findMany({
-      where: { organizationId: { in: viewIds }, endsAt: { gte: now }, OR: [{ status: "PUBLISHED" }, { organizationId: { in: manageEvents }, status: "DRAFT" }] },
+      where: { organizationId: { in: viewIds }, endsAt: { gte: now }, deletedAt: null, OR: [{ status: "PUBLISHED" }, { organizationId: { in: manageEvents }, status: "DRAFT" }] },
       orderBy: { startsAt: "asc" }, take: 5, select: { id: true, title: true, startsAt: true, venue: true, status: true, organization: { select: { name: true } } },
     }),
     db.attendanceRecord.count({ where: { userId: user.id } }),
@@ -48,7 +48,7 @@ export async function memberDashboard(user: AuthUser) {
     db.consequence.count({ where: { userId: user.id, status: "PENDING" } }),
     db.studentFee.findMany({ where: { userId: user.id }, select: { amountDue: true, payments: { where: { voidedAt: null, status: "CONFIRMED" }, select: { amount: true } } } }),
     db.announcement.findMany({
-      where: { organizationId: { in: orgIdsWith(user, "announcements.view") }, status: "PUBLISHED" },
+      where: { organizationId: { in: orgIdsWith(user, "announcements.view") }, status: "PUBLISHED", deletedAt: null },
       orderBy: { publishedAt: "desc" }, take: 3, select: { id: true, title: true, publishedAt: true, organization: { select: { name: true } } },
     }),
   ]);

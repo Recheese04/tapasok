@@ -26,7 +26,7 @@ export async function createObligations(actor: Actor, input: ObligationInput): P
   if (valid.size !== userIds.length) return { ok: false, error: "Every selected person must be an active member of this organization." };
 
   if (input.eventId) {
-    const ev = await db.event.findFirst({ where: { id: input.eventId, organizationId: input.organizationId }, select: { id: true } });
+    const ev = await db.event.findFirst({ where: { id: input.eventId, organizationId: input.organizationId, deletedAt: null }, select: { id: true } });
     if (!ev) return { ok: false, error: "That event does not belong to this organization." };
   }
 

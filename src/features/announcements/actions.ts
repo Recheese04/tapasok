@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/database/client";
 import { assertOrgPermission } from "@/lib/permissions";
 import { fieldErrorsOf } from "@/lib/format";
+import { deletion, restoration } from "@/lib/database/soft-delete";
 import { getActiveTerm } from "@/features/academic/service";
 import { publishNotifications } from "./service";
 
@@ -58,7 +59,7 @@ export async function createAnnouncementAction(_prev: AnnouncementState, fd: For
 export async function updateAnnouncementAction(_prev: AnnouncementState, fd: FormData): Promise<AnnouncementState> {
   const id = z.uuid().safeParse(fd.get("announcementId"));
   if (!id.success) return { error: "Invalid announcement." };
-  const existing = await db.announcement.findUnique({ where: { id: id.data }, select: { organizationId: true, status: true, publishedAt: true } });
+  const existing = await db.announcement.findFirst({ where: { id: id.data, deletedAt: null }, select: { organizationId: true, status: true, publishedAt: true } });
   if (!existing) return { error: "Announcement not found." };
   const actor = await assertOrgPermission("announcements.manage", existing.organizationId);
   const parsed = read(fd);
@@ -81,16 +82,31 @@ export async function updateAnnouncementAction(_prev: AnnouncementState, fd: For
   return { success: status === "PUBLISHED" ? "Saved and published." : "Saved." };
 }
 
-/** Permanently removes an announcement (and its audience targets). Notifications already sent stay in people's inboxes. */
+/**
+ * Deletes (soft) an announcement: it disappears for everyone (web, app, dashboard) but stays in the database with its
+ * audience, and managers can restore it from the Announcements page. Notifications already sent stay in people's inboxes.
+ */
 export async function deleteAnnouncementAction(fd: FormData) {
   const id = z.uuid().safeParse(fd.get("announcementId"));
   if (!id.success) return;
-  const a = await db.announcement.findUnique({ where: { id: id.data }, select: { organizationId: true } });
+  const a = await db.announcement.findFirst({ where: { id: id.data, deletedAt: null }, select: { organizationId: true } });
   if (!a) return;
   const actor = await assertOrgPermission("announcements.manage", a.organizationId);
   await db.$transaction([
-    db.announcementTarget.deleteMany({ where: { announcementId: id.data } }),
-    db.announcement.delete({ where: { id: id.data } }),
-    db.auditLog.create({ data: { actorUserId: actor.id, action: "announcement.delete", targetType: "announcement", targetId: id.data } }),
+    db.announcement.update({ where: { id: id.data }, data: deletion(actor.id) }),
+    db.auditLog.create({ data: { actorUserId: actor.id, action: "announcement.delete", targetType: "announcement", targetId: id.data, metadata: { soft: true } } }),
+  ]);
+}
+
+/** Brings a deleted announcement back exactly as it was. Same authority as deleting it. Nobody is notified again. */
+export async function restoreAnnouncementAction(fd: FormData) {
+  const id = z.uuid().safeParse(fd.get("announcementId"));
+  if (!id.success) return;
+  const a = await db.announcement.findUnique({ where: { id: id.data }, select: { organizationId: true, deletedAt: true } });
+  if (!a?.deletedAt) return;
+  const actor = await assertOrgPermission("announcements.manage", a.organizationId);
+  await db.$transaction([
+    db.announcement.update({ where: { id: id.data }, data: restoration() }),
+    db.auditLog.create({ data: { actorUserId: actor.id, action: "announcement.restore", targetType: "announcement", targetId: id.data } }),
   ]);
 }

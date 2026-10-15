@@ -41,7 +41,7 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
     const where = { organizationId: orgId };
     const [feeTypes, events, total, rows, pendingPayments] = await Promise.all([
       db.feeType.findMany({ where, orderBy: { createdAt: "desc" }, include: { _count: { select: { assignments: true } } } }),
-      manage ? db.event.findMany({ where, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
+      manage ? db.event.findMany({ where: { ...where, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
       db.studentFee.count({ where }),
       db.studentFee.findMany({
         where, orderBy: [{ title: "asc" }, { user: { lastName: "asc" } }], skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,

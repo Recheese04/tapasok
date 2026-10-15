@@ -16,7 +16,7 @@ export default async function EditAnnouncementPage({ params }: { params: Promise
   const user = await requireUser();
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
-  const a = await db.announcement.findUnique({ where: { id }, include: { targets: true } });
+  const a = await db.announcement.findFirst({ where: { id, deletedAt: null }, include: { targets: true } });
   // Not found for anyone who cannot manage announcements in that organization.
   if (!a || !canOrg(user, "announcements.manage", a.organizationId)) notFound();
   const { tree, semesters } = await eventFormData([]);

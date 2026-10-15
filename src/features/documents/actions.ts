@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { deletion, restoration } from "@/lib/database/soft-delete";
 import { db } from "@/lib/database/client";
 import { assertOrgPermission } from "@/lib/permissions";
 import { getActiveTerm } from "@/features/academic/service";
@@ -19,7 +20,7 @@ export async function uploadDocumentAction(_prev: DocumentState, fd: FormData): 
   const category = z.enum(["MINUTES", "ATTENDANCE_SHEET", "RESOLUTION", "EVENT_DOCUMENT", "OTHER"]).safeParse(fd.get("category") || "OTHER");
   if (!category.success) return { error: "Choose a category." };
   const eventId = z.union([z.uuid(), z.literal("")]).safeParse(fd.get("eventId") ?? "");
-  if (eventId.success && eventId.data && !(await db.event.findFirst({ where: { id: eventId.data, organizationId: orgId.data }, select: { id: true } }))) return { error: "Choose an event of this organization." };
+  if (eventId.success && eventId.data && !(await db.event.findFirst({ where: { id: eventId.data, organizationId: orgId.data, deletedAt: null }, select: { id: true } }))) return { error: "Choose an event of this organization." };
   const semesterId = (await getActiveTerm())?.semester.id ?? null;
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file." };
@@ -37,15 +38,30 @@ export async function uploadDocumentAction(_prev: DocumentState, fd: FormData): 
   return { success: "Document uploaded." };
 }
 
-/** Soft delete: the record and file are kept for history but are no longer listed or downloadable. */
+/** Soft delete: the record and file are kept for history but are no longer listed or downloadable. Restorable. */
 export async function removeDocumentAction(fd: FormData) {
   const id = z.uuid().safeParse(fd.get("documentId"));
   if (!id.success) return;
   const doc = await db.document.findUnique({ where: { id: id.data }, select: { organizationId: true, deletedAt: true } });
   if (!doc || doc.deletedAt) return;
   const actor = await assertOrgPermission("documents.manage", doc.organizationId);
-  await db.document.update({ where: { id: id.data }, data: { deletedAt: new Date() } });
-  await db.auditLog.create({ data: { actorUserId: actor.id, action: "document.remove", targetType: "document", targetId: id.data } });
+  await db.$transaction([
+    db.document.update({ where: { id: id.data }, data: deletion(actor.id) }),
+    db.auditLog.create({ data: { actorUserId: actor.id, action: "document.remove", targetType: "document", targetId: id.data } }),
+  ]);
+}
+
+/** Brings a removed document back (same authority as removing it: documents.manage in its organization). */
+export async function restoreDocumentAction(fd: FormData) {
+  const id = z.uuid().safeParse(fd.get("documentId"));
+  if (!id.success) return;
+  const doc = await db.document.findUnique({ where: { id: id.data }, select: { organizationId: true, deletedAt: true } });
+  if (!doc?.deletedAt) return;
+  const actor = await assertOrgPermission("documents.manage", doc.organizationId);
+  await db.$transaction([
+    db.document.update({ where: { id: id.data }, data: restoration() }),
+    db.auditLog.create({ data: { actorUserId: actor.id, action: "document.restore", targetType: "document", targetId: id.data } }),
+  ]);
 }
 
 export type DocumentEditState = { error?: string; success?: string };

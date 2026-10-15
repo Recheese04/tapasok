@@ -63,7 +63,7 @@ export async function adminOrganizationDetails(id: string) {
       id: true, name: true, acronym: true, description: true, status: true, scope: true, autoEnroll: true, createdAt: true,
       collegeId: true, departmentId: true, programId: true,
       college: { select: { code: true, name: true } }, department: { select: { name: true } }, program: { select: { code: true, name: true } },
-      _count: { select: { events: true, announcements: true, documents: true, joinRequests: { where: { status: "PENDING" } }, devices: { where: { active: true } } } },
+      _count: { select: { events: { where: { deletedAt: null } }, announcements: { where: { deletedAt: null } }, documents: { where: { deletedAt: null } }, joinRequests: { where: { status: "PENDING" } }, devices: { where: { active: true } } } },
     },
   });
   if (!org) return null;

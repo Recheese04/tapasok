@@ -20,7 +20,7 @@ export default async function EvaluationsPage() {
   const manageIds = orgIdsWith(user, "evaluations.manage");
   const events = manageIds.length
     ? await db.event.findMany({
-        where: { organizationId: { in: manageIds }, evaluation: null, status: { not: "CANCELLED" } },
+        where: { organizationId: { in: manageIds }, evaluation: null, status: { not: "CANCELLED" }, deletedAt: null },
         orderBy: { startsAt: "desc" }, take: 100,
         select: { id: true, title: true, startsAt: true, organization: { select: { name: true } } },
       })

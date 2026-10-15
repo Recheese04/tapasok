@@ -9,6 +9,7 @@ function visibleEvents(user: AuthUser) {
   const viewIds = orgIdsWith(user, "events.view");
   const manageIds = orgIdsWith(user, "events.manage");
   return {
+    deletedAt: null,
     organizationId: { in: viewIds },
     OR: [{ status: { in: ["PUBLISHED", "CANCELLED"] as ("PUBLISHED" | "CANCELLED")[] } }, { organizationId: { in: manageIds } }],
   };
@@ -49,4 +50,14 @@ export async function getEventForViewer(user: AuthUser, id: string) {
   // createdById is a plain column (no relation) so old events without a creator keep working.
   const creator = event.createdById ? await db.user.findUnique({ where: { id: event.createdById }, select: { firstName: true, lastName: true } }) : null;
   return { event, attendanceCount, myRecords, creatorName: creator ? `${creator.firstName} ${creator.lastName}` : null };
+}
+
+/** Soft-deleted events the user may restore (events.manage in the event's organization), newest first. */
+export async function deletedEvents(user: AuthUser) {
+  const manageIds = orgIdsWith(user, "events.manage");
+  if (!manageIds.length) return [];
+  return db.event.findMany({
+    where: { organizationId: { in: manageIds }, deletedAt: { not: null } }, orderBy: { deletedAt: "desc" }, take: 50,
+    select: { id: true, title: true, startsAt: true, deletedAt: true, deletedById: true, organization: { select: { name: true } } },
+  });
 }

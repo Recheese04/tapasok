@@ -61,7 +61,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
             {event.status === "DRAFT" && (
               <form action={deleteEventAction}>
                 <input type="hidden" name="eventId" value={event.id} />
-                <ConfirmButton message="Delete this draft event permanently? Events that were used (attendance, fees, evaluations, documents) cannot be deleted; cancel them instead." className={secondaryButton}>Delete draft</ConfirmButton>
+                <ConfirmButton message="Delete this draft event? It will be hidden from everyone, and you can restore it from the Events page. Events that were used (attendance, fees, evaluations, documents) cannot be deleted; cancel them instead." className={secondaryButton}>Delete draft</ConfirmButton>
               </form>
             )}
           </>

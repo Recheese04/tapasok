@@ -164,7 +164,9 @@ describe("CRUD: obligations, announcements, events and documents", () => {
     expect(await db.announcement.count({ where: { id: a.id } })).toBe(1);
     await signInAs(w.a.PRESIDENT.id);
     await deleteAnnouncementAction(form({ announcementId: a.id }));
-    expect(await db.announcement.count({ where: { id: a.id } })).toBe(0);
+    // Soft delete: kept in the database (restorable), hidden from every list.
+    expect(await db.announcement.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ deletedById: w.a.PRESIDENT.id });
+    expect(await db.announcement.count({ where: { id: a.id, deletedAt: null } })).toBe(0);
   });
 
   it("only unused draft events can be deleted, and only by managers of that organization", async () => {
@@ -180,8 +182,10 @@ describe("CRUD: obligations, announcements, events and documents", () => {
     await run(used.id); await run(published.id);
     expect(await db.event.count({ where: { id: { in: [used.id, published.id] } } })).toBe(2); // refused, nothing lost
     await expect(run(draft.id)).rejects.toThrow("NEXT_REDIRECT:/events");
-    expect(await db.event.count({ where: { id: draft.id } })).toBe(0);
-    expect(await db.eventSession.count({ where: { eventId: draft.id } })).toBe(0);
+    // Soft delete: the event and its sessions stay in the database (restorable) but it is hidden.
+    expect(await db.event.findUniqueOrThrow({ where: { id: draft.id } })).toMatchObject({ deletedById: w.a.OFFICER.id });
+    expect(await db.event.count({ where: { id: draft.id, deletedAt: null } })).toBe(0);
+    expect(await db.eventSession.count({ where: { eventId: draft.id } })).toBe(1);
   });
 
   it("document details are edited only by president/secretary of the owning organization; members can't upload", async () => {

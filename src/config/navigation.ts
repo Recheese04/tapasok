@@ -46,6 +46,7 @@ const RULES: Rule[] = [
   { label: "User Management", href: "/users", section: "admin", visible: (u) => canSystem(u, "users.manage") },
   { label: "Academic Setup", href: "/academic", section: "admin", visible: (u) => canSystem(u, "academic.manage") },
   { label: "Organizations", href: "/organizations", section: "admin", visible: admin },
+  { label: "Landing Page", href: "/landing-page", section: "admin", visible: (u) => canSystem(u, "landing.manage") },
   { label: "Reports", href: "/reports", section: "admin", visible: (u) => canSystem(u, "reports.system") },
 
   { label: "Events & QR", href: "/events", section: "manage", visible: anyPerm("events.manage", "attendance.scan") },
@@ -63,6 +64,7 @@ const RULES: Rule[] = [
   { label: "My Consequences", href: "/consequences", section: "account", visible: attendee },
   { label: "My Fees & Payments", href: "/fees", section: "account", visible: attendee },
   { label: "My Organizations", href: "/organizations", section: "account", visible: personal },
+  { label: "Rate Tapasok", href: "/feedback", section: "account", visible: personal },
   { label: "Profile & Settings", href: "/settings", section: "account", visible: () => true },
 
   { label: "Announcements", href: "/announcements", section: "other", visible: anyOrg },

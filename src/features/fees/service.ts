@@ -26,7 +26,7 @@ export async function createFeeType(
   input: { name: string; amount: Prisma.Decimal; description: string | null; dueDate: Date | null; kind: Exclude<AssessmentKind, "FINE">; eventId: string | null },
 ): Promise<Result<{ id: string }>> {
   if (input.amount.lte(0)) return { ok: false, error: "The amount must be greater than zero." };
-  if (input.eventId && !(await db.event.findFirst({ where: { id: input.eventId, organizationId }, select: { id: true } }))) return { ok: false, error: "Choose an event of this organization." };
+  if (input.eventId && !(await db.event.findFirst({ where: { id: input.eventId, organizationId, deletedAt: null }, select: { id: true } }))) return { ok: false, error: "Choose an event of this organization." };
   const term = await getActiveTerm();
   try {
     const fee = await db.feeType.create({ data: { organizationId, ...input, semesterId: term?.semester.id ?? null } });

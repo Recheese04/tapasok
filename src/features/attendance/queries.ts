@@ -28,7 +28,7 @@ export async function listOrgAttendance(user: AuthUser, opts: { eventId?: string
         event: { select: { id: true, title: true } },
       },
     }),
-    db.event.findMany({ where: { organizationId: { in: orgIds } }, orderBy: { startsAt: "desc" }, take: 100, select: { id: true, title: true } }),
+    db.event.findMany({ where: { organizationId: { in: orgIds }, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 100, select: { id: true, title: true } }),
   ]);
   return { total, rows, events };
 }

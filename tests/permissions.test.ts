@@ -108,14 +108,14 @@ describe("navigation per role", () => {
 
   it("system admin sees only system tools, with no personal organization or management items", async () => {
     const w = await makeWorld();
-    expect(await labels(w.admin.id)).toEqual(["Dashboard", "Notifications", "User Management", "Academic Setup", "Organizations", "Reports", "Profile & Settings"]);
+    expect(await labels(w.admin.id)).toEqual(["Dashboard", "Notifications", "User Management", "Academic Setup", "Organizations", "Landing Page", "Reports", "Profile & Settings"]);
   });
 
   it("regular members get My Account and Other, and no Organization Management", async () => {
     const w = await makeWorld();
     expect(await inSection(w.a.MEMBER.id, "manage")).toEqual([]);
     expect(await inSection(w.a.MEMBER.id, "account")).toEqual([
-      "Events", "Scan Attendance QR", "My Attendance", "My Obligations", "My Consequences", "My Fees & Payments", "My Organizations", "Profile & Settings",
+      "Events", "Scan Attendance QR", "My Attendance", "My Obligations", "My Consequences", "My Fees & Payments", "My Organizations", "Rate Tapasok", "Profile & Settings",
     ]);
     expect(await inSection(w.a.MEMBER.id, "other")).toEqual(["Announcements", "Documents", "Event Evaluations"]);
     const l = await labels(w.a.MEMBER.id);
@@ -163,7 +163,7 @@ describe("navigation per role", () => {
 
   it("a user with no organization sees only the basics and My Organizations (where they can join)", async () => {
     const w = await makeWorld();
-    expect(await labels(w.nobody.id)).toEqual(["Dashboard", "Notifications", "My Organizations", "Profile & Settings"]);
+    expect(await labels(w.nobody.id)).toEqual(["Dashboard", "Notifications", "My Organizations", "Rate Tapasok", "Profile & Settings"]);
   });
 });
 

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { db } from "@/lib/database/client";
 import { assertOrgPermission } from "@/lib/permissions";
 import { fieldErrorsOf, parseManilaLocal } from "@/lib/format";
+import { ACTIVE, deletion, restoration } from "@/lib/database/soft-delete";
+import { refreshLanding } from "@/features/landing/cache";
 import { createEvent, updateEvent, type EventInput } from "./service";
 
 export type EventFormState = { error?: string; success?: string; fieldErrors?: Record<string, string | undefined> };
@@ -65,7 +67,7 @@ export async function updateEventAction(_prev: EventFormState, fd: FormData): Pr
   const eventId = z.uuid().safeParse(fd.get("eventId"));
   if (!eventId.success) return { error: "Invalid event." };
   // Authorize against the event's real organization, never one supplied by the form.
-  const event = await db.event.findUnique({ where: { id: eventId.data }, select: { organizationId: true } });
+  const event = await db.event.findFirst({ where: { id: eventId.data, ...ACTIVE }, select: { organizationId: true } });
   if (!event) return { error: "Event not found." };
   const actor = await assertOrgPermission("events.manage", event.organizationId);
 
@@ -73,6 +75,7 @@ export async function updateEventAction(_prev: EventFormState, fd: FormData): Pr
   if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
   const res = await updateEvent(actor.id, eventId.data, toInput(parsed.data));
   if (!res.ok) return { error: res.error, fieldErrors: res.fieldErrors };
+  refreshLanding();
   return { success: res.sessionsLocked ? "Saved. Attendance sessions are locked because attendance has already been recorded." : "Saved." };
 }
 
@@ -80,7 +83,7 @@ const statusSchema = z.object({ eventId: z.uuid(), status: z.enum(["DRAFT", "PUB
 
 export async function setEventStatusAction(fd: FormData) {
   const parsed = statusSchema.parse({ eventId: fd.get("eventId"), status: fd.get("status") });
-  const event = await db.event.findUnique({ where: { id: parsed.eventId }, select: { organizationId: true, status: true, _count: { select: { attendance: true } } } });
+  const event = await db.event.findFirst({ where: { id: parsed.eventId, ...ACTIVE }, select: { organizationId: true, status: true, _count: { select: { attendance: true } } } });
   if (!event) return;
   const actor = await assertOrgPermission("events.manage", event.organizationId);
   // An event with recorded attendance can be cancelled but not pulled back to draft.
@@ -91,17 +94,19 @@ export async function setEventStatusAction(fd: FormData) {
   await db.auditLog.create({
     data: { actorUserId: actor.id, action: `event.${parsed.status.toLowerCase()}`, targetType: "event", targetId: parsed.eventId },
   });
+  refreshLanding();
 }
 
 /**
- * Deletes an event that was never used: still a draft, with no attendance, consequences, evaluation, fees, obligations or
- * documents attached. Anything else is cancelled instead so its history stays intact.
+ * Deletes (soft) an event that was never used: still a draft, with no attendance, consequences, evaluation, fees,
+ * obligations or documents attached. Anything else is cancelled instead so its history stays intact. A deleted event is
+ * hidden everywhere and can be restored from the Events page; nothing is removed from the database.
  */
 export async function deleteEventAction(fd: FormData) {
   const id = z.uuid().safeParse(fd.get("eventId"));
   if (!id.success) return;
-  const e = await db.event.findUnique({
-    where: { id: id.data },
+  const e = await db.event.findFirst({
+    where: { id: id.data, ...ACTIVE },
     select: {
       organizationId: true, status: true,
       _count: { select: { attendance: true, consequences: true, obligations: true } },
@@ -113,11 +118,23 @@ export async function deleteEventAction(fd: FormData) {
   const [fees, docs] = await Promise.all([db.feeType.count({ where: { eventId: id.data } }), db.document.count({ where: { eventId: id.data } })]);
   if (e.status !== "DRAFT" || e._count.attendance || e._count.consequences || e._count.obligations || e.evaluation || fees || docs) return;
   await db.$transaction([
-    db.eventTarget.deleteMany({ where: { eventId: id.data } }),
-    db.eventRule.deleteMany({ where: { eventId: id.data } }),
-    db.eventSession.deleteMany({ where: { eventId: id.data } }),
-    db.event.delete({ where: { id: id.data } }),
-    db.auditLog.create({ data: { actorUserId: actor.id, action: "event.delete", targetType: "event", targetId: id.data } }),
+    db.event.update({ where: { id: id.data }, data: deletion(actor.id) }),
+    db.auditLog.create({ data: { actorUserId: actor.id, action: "event.delete", targetType: "event", targetId: id.data, metadata: { soft: true } } }),
   ]);
+  refreshLanding();
   redirect("/events");
+}
+
+/** Brings a deleted event back as it was (a draft). Same authority as deleting it: events.manage in its organization. */
+export async function restoreEventAction(fd: FormData) {
+  const id = z.uuid().safeParse(fd.get("eventId"));
+  if (!id.success) return;
+  const e = await db.event.findUnique({ where: { id: id.data }, select: { organizationId: true, deletedAt: true } });
+  if (!e?.deletedAt) return;
+  const actor = await assertOrgPermission("events.manage", e.organizationId);
+  await db.$transaction([
+    db.event.update({ where: { id: id.data }, data: restoration() }),
+    db.auditLog.create({ data: { actorUserId: actor.id, action: "event.restore", targetType: "event", targetId: id.data } }),
+  ]);
+  refreshLanding();
 }

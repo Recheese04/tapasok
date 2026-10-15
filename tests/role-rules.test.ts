@@ -22,14 +22,15 @@ import { decideJoinRequest, submitJoinRequest } from "@/features/organizations/r
 import { decideJoinRequestAction, submitJoinRequestAction } from "@/features/organizations/request-actions";
 import { adjustAttendanceAction, finalizeSessionAction, getSessionQrAction, manualEntryAction, revokeSessionQrAction, scanAttendanceAction, selfCheckInAction, setSessionActiveAction, toggleSessionAction } from "@/features/attendance/actions";
 import { registerDeviceAction, revokeDeviceAction } from "@/features/attendance/device-actions";
-import { createEventAction, deleteEventAction, setEventStatusAction, updateEventAction } from "@/features/events/actions";
-import { createAnnouncementAction, deleteAnnouncementAction } from "@/features/announcements/actions";
+import { createEventAction, deleteEventAction, restoreEventAction, setEventStatusAction, updateEventAction } from "@/features/events/actions";
+import { createAnnouncementAction, deleteAnnouncementAction, restoreAnnouncementAction } from "@/features/announcements/actions";
 import { adjustLedgerAction, assessMemberAction, assignFeeAction, createFeeTypeAction, recordPaymentAction, verifyPaymentAction, voidPaymentAction } from "@/features/fees/actions";
 import { decideFundAction, recordFundAction, reverseFundAction } from "@/features/finance/actions";
 import { createEvaluationAction } from "@/features/evaluations/actions";
 import { cancelObligationAction, completeObligationAction, createObligationAction } from "@/features/obligations/actions";
 import { createRuleAction, deleteRuleAction, toggleRuleAction, updateConsequenceStatusAction, updateRuleAction } from "@/features/consequences/actions";
-import { removeDocumentAction } from "@/features/documents/actions";
+import { removeDocumentAction, restoreDocumentAction } from "@/features/documents/actions";
+import { imageAction, moderateFeedbackAction, showOnLandingAction, submitFeedbackAction } from "@/features/landing/actions";
 import { endMembershipAction, changeMemberRoleAction, addMemberAction } from "@/features/organizations/actions";
 import { generateJoinCodeAction } from "@/features/organizations/join-actions";
 import { makeMemberQr, makeSessionQr } from "@/features/attendance/qr";
@@ -200,6 +201,10 @@ describe("the Adviser is strictly read-only", () => {
     const rec = await db.attendanceRecord.create({ data: { eventId: ev.id, sessionId: ev.session.id, userId: w.a.MEMBER.id, status: "ABSENT", source: "SYSTEM" } });
     const rule = await db.consequenceRule.create({ data: { organizationId: w.orgA.id, name: "Absent fine", fineAmount: 50 } });
     const ob = await db.obligation.create({ data: { organizationId: w.orgA.id, userId: w.a.MEMBER.id, title: "Clean up" } }).catch(() => null);
+    const gone = await makeEvent(w.orgA.id, { status: "DRAFT", title: "Deleted draft" });
+    await db.event.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
+    const goneAnn = await db.announcement.create({ data: { organizationId: w.orgA.id, title: "Deleted news", body: "x", deletedAt: new Date() } });
+    const goneDoc = await db.document.create({ data: { organizationId: w.orgA.id, title: "Old minutes", fileName: "m.pdf", mimeType: "application/pdf", sizeBytes: 5, storageKey: "gone-doc", deletedAt: new Date() } });
     const before = await Promise.all([db.event.count(), db.announcement.count(), db.attendanceRecord.count(), db.scannerDevice.count({ where: { active: true } }), db.fundTransaction.count({ where: { status: "PENDING" } }), db.payment.count({ where: { status: "PENDING" } }), db.joinRequest.count({ where: { status: "PENDING" } }), db.organizationMember.count(), db.feeType.count(), db.studentFee.count(), db.consequenceRule.count(), db.evaluationForm.count(), db.organizationJoinCode.count()]);
 
     await signInAs(adviser);
@@ -245,6 +250,13 @@ describe("the Adviser is strictly read-only", () => {
       ["delete rule", () => deleteRuleAction(form({ ruleId: rule.id }))],
       ["waive consequence", () => updateConsequenceStatusAction(form({ consequenceId: "00000000-0000-4000-8000-000000000000", status: "WAIVED", note: "x" }))],
       ["remove document", () => removeDocumentAction(form({ documentId: "00000000-0000-4000-8000-000000000000" }))],
+      ["restore event", () => restoreEventAction(form({ eventId: gone.id }))],
+      ["restore announcement", () => restoreAnnouncementAction(form({ announcementId: goneAnn.id }))],
+      ["restore document", () => restoreDocumentAction(form({ documentId: goneDoc.id }))],
+      ["landing picture", () => imageAction({}, form({ imageId: "00000000-0000-4000-8000-000000000000", op: "remove" }))],
+      ["landing event", () => showOnLandingAction({}, form({ eventId: ev.id, show: "true" }))],
+      ["moderate feedback", () => moderateFeedbackAction({}, form({ feedbackId: "00000000-0000-4000-8000-000000000000", action: "approve" }))],
+      ["post feedback", () => submitFeedbackAction({}, form({ rating: "5", comment: "Great" }))],
     ];
     for (const [label, call] of web) await refused(label, call);
 
@@ -271,6 +283,12 @@ describe("the Adviser is strictly read-only", () => {
 
     const after = await Promise.all([db.event.count(), db.announcement.count(), db.attendanceRecord.count(), db.scannerDevice.count({ where: { active: true } }), db.fundTransaction.count({ where: { status: "PENDING" } }), db.payment.count({ where: { status: "PENDING" } }), db.joinRequest.count({ where: { status: "PENDING" } }), db.organizationMember.count(), db.feeType.count(), db.studentFee.count(), db.consequenceRule.count(), db.evaluationForm.count(), db.organizationJoinCode.count()]);
     expect(after).toEqual(before);
+    // Nothing deleted was brought back, and no feedback was posted in the Adviser's name.
+    expect((await db.event.findUniqueOrThrow({ where: { id: gone.id } })).deletedAt).not.toBeNull();
+    expect((await db.announcement.findUniqueOrThrow({ where: { id: goneAnn.id } })).deletedAt).not.toBeNull();
+    expect((await db.document.findUniqueOrThrow({ where: { id: goneDoc.id } })).deletedAt).not.toBeNull();
+    expect(await db.siteFeedback.count()).toBe(0);
+    expect((await db.event.findUniqueOrThrow({ where: { id: ev.id } })).showOnLanding).toBe(false);
     expect(await db.event.findUniqueOrThrow({ where: { id: ev.id } })).toMatchObject({ title: ev.title, status: "PUBLISHED" });
     expect(await db.consequenceRule.findUniqueOrThrow({ where: { id: rule.id } })).toMatchObject({ name: "Absent fine", active: true });
     expect(await db.eventSession.findUniqueOrThrow({ where: { id: S } })).toMatchObject({ active: true, finalizedAt: null });

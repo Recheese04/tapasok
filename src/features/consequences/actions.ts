@@ -119,7 +119,7 @@ export async function createConsequenceAction(_prev: ConsequenceState, fd: FormD
   const [member, rule, event] = await Promise.all([
     db.organizationMember.findFirst({ where: { organizationId, userId, endedAt: null }, select: { id: true } }),
     ruleId ? db.consequenceRule.findFirst({ where: { id: ruleId, organizationId, active: true } }) : null,
-    eventId ? db.event.findFirst({ where: { id: eventId, organizationId }, select: { id: true } }) : null,
+    eventId ? db.event.findFirst({ where: { id: eventId, organizationId, deletedAt: null }, select: { id: true } }) : null,
   ]);
   if (!member) return { error: "That person is not an active member of this organization." };
   if (ruleId && !rule) return { error: "Choose a rule from this organization." };

@@ -84,7 +84,8 @@ export type SystemPermission =
   | "organizations.manage"
   | "academic.manage"
   | "settings.system"
-  | "reports.system";
+  | "reports.system"
+  | "landing.manage"; // landing-page event pictures and feedback moderation
 
 export const isSystemAdminUser = (user: PolicyUser) => user.systemRole === "SYSTEM_ADMIN";
 

@@ -38,6 +38,12 @@ automated test in `tests/` that runs against a real PostgreSQL database.
 - CSV exports neutralise spreadsheet formulas (`=`, `+`, `-`, `@`).
 - Uploads: extension allow-list **and** magic-byte check, 10 MB limit, random storage key (the user's file name never
   touches the path), served only through authorised routes with `nosniff` and a sandboxing CSP.
+- Pictures (profile pictures, landing-page event pictures) are content-sniffed, decoded with a pixel limit, re-encoded to
+  WebP with all metadata removed, and stored in the database (persistent). Landing-page pictures are public only while
+  their event is shown on the landing page; otherwise only System Admin can load them.
+- Landing-page feedback: signed-in accounts only (no anonymous posting), one active entry per account (partial unique
+  index), at most 10 changes per hour, plain text up to 500 characters with control and bidi characters removed, and
+  nothing is public before a System Admin approves it. Public entries show the first name and last initial only.
 
 ## HTTP headers (all routes)
 
@@ -56,8 +62,9 @@ document downloads, exports and administrative changes are written to `audit_log
 
 ## Known gaps / out of scope
 
-- **Uploaded files on Vercel** are written to the server's disk, which Vercel does not keep. Move to object storage
-  (e.g. Supabase Storage) before relying on uploads in production.
+- **Uploaded documents, payment proofs and expense receipts on Vercel** are written to the server's disk, which Vercel
+  does not keep. Move them to object storage (e.g. Supabase Storage) before relying on them in production. Profile
+  pictures and landing-page event pictures are already stored in the database.
 - **`DEFAULT_ACCOUNT_PASSWORD`** should be removed from the production environment so new accounts use one-time setup
   links. While it is set, anyone who knows the shared password could sign in to an account that has not yet chosen its
   own password (they would then be forced to change it, taking over the account).

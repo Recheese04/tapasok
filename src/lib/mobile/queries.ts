@@ -11,7 +11,7 @@ export const money = (d: Prisma.Decimal) => d.toFixed(2);
 /** Published announcements of the member's organizations that are aimed at them (audience targeting applies). */
 export async function memberAnnouncements(user: AuthUser, limit: number) {
   const candidates = await db.announcement.findMany({
-    where: { organizationId: { in: orgIdsWith(user, "announcements.view") }, status: "PUBLISHED" },
+    where: { organizationId: { in: orgIdsWith(user, "announcements.view") }, status: "PUBLISHED", deletedAt: null },
     orderBy: [{ publishedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     take: 100,
     select: { id: true, title: true, body: true, publishedAt: true, createdAt: true, targetMode: true, semesterId: true, organizationId: true, organization: { select: { name: true } } },

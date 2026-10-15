@@ -19,7 +19,7 @@ const DEFAULT_QUESTIONS = [
 export async function createEvaluationAction(fd: FormData) {
   const eventId = z.uuid().safeParse(fd.get("eventId"));
   if (!eventId.success) return;
-  const event = await db.event.findUnique({ where: { id: eventId.data }, select: { id: true, title: true, organizationId: true, evaluation: { select: { id: true } } } });
+  const event = await db.event.findFirst({ where: { id: eventId.data, deletedAt: null }, select: { id: true, title: true, organizationId: true, evaluation: { select: { id: true } } } });
   if (!event) return;
   const actor = await assertOrgPermission("evaluations.manage", event.organizationId);
   if (event.evaluation) redirect(`/evaluations/${event.evaluation.id}`);

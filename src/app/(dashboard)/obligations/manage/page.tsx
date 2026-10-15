@@ -37,7 +37,7 @@ export default async function ManageObligationsPage({ searchParams }: { searchPa
       select: { id: true, title: true, description: true, completionRequirements: true, dueAt: true, status: true, memberNote: true, submittedAt: true, user: { select: { firstName: true, lastName: true } } },
     }),
     manage ? db.organizationMember.findMany({ where: { organizationId: orgId, endedAt: null, user: { status: "ACTIVE" } }, select: { user: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { user: { lastName: "asc" } } }) : [],
-    manage ? db.event.findMany({ where: { organizationId: orgId }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
+    manage ? db.event.findMany({ where: { organizationId: orgId, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
   ]);
 
   return (

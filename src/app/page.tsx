@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Icon, type IconName } from "@/components/layout/icons";
 import { Logo, LogoMark } from "@/features/landing/brand";
 import { DashboardMockup, FloatingChip, PhoneMockup } from "@/features/landing/mockups";
+import { LandingEvents, LandingFeedback } from "@/features/landing/public-sections";
 
 const DESCRIPTION = "Tapasok: events, QR and RFID attendance, dues and announcements for student organizations, in one place. On the web and on Android.";
 
@@ -17,8 +19,9 @@ export const metadata: Metadata = {
 };
 
 // The public front door. Static: it reads no session, so it is prerendered and served instantly. Signing in happens on /login.
+// The events and ratings sections read cached data (see src/features/landing/public-sections.tsx), refreshed on change.
 
-const NAV = [["Features", "#features"], ["How it works", "#how"], ["For officers", "#roles"], ["Mobile", "#mobile"], ["FAQ", "#faq"]] as const;
+const NAV = [["Features", "#features"], ["How it works", "#how"], ["For officers", "#roles"], ["Mobile", "#mobile"], ["Ratings", "#feedback"], ["FAQ", "#faq"]] as const;
 
 export default function Landing() {
   return (
@@ -28,10 +31,12 @@ export default function Landing() {
         <Hero />
         <Proof />
         <Features />
+        <Suspense fallback={null}><LandingEvents /></Suspense>
         <HowItWorks />
         <Roles />
         <Mobile />
         <Trust />
+        <Suspense fallback={null}><LandingFeedback /></Suspense>
         <Faq />
         <FinalCta />
       </main>

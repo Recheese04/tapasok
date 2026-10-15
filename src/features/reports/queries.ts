@@ -9,7 +9,7 @@ export async function systemReport() {
   await assertSystemPermission("reports.system");
   const [users, activeUsers, students, organizations, memberships, events, recent] = await Promise.all([
     db.user.count(), db.user.count({ where: { status: "ACTIVE" } }), db.studentProfile.count(),
-    db.organization.count({ where: { status: "ACTIVE" } }), db.organizationMember.count({ where: { endedAt: null } }), db.event.count(),
+    db.organization.count({ where: { status: "ACTIVE" } }), db.organizationMember.count({ where: { endedAt: null } }), db.event.count({ where: { deletedAt: null } }),
     db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 30, select: { id: true, action: true, createdAt: true, actor: { select: { firstName: true, lastName: true } } } }),
   ]);
   return { users, activeUsers, students, organizations, memberships, events, recent };
@@ -17,7 +17,7 @@ export async function systemReport() {
 
 export async function attendanceSummary(user: AuthUser) {
   const events = await db.event.findMany({
-    where: { organizationId: { in: orgIdsWith(user, "reports.attendance") }, status: "PUBLISHED" },
+    where: { organizationId: { in: orgIdsWith(user, "reports.attendance") }, status: "PUBLISHED", deletedAt: null },
     orderBy: { startsAt: "desc" }, take: 50,
     select: { id: true, title: true, startsAt: true, organization: { select: { name: true } }, sessions: { select: { id: true } }, attendance: { select: { status: true, userId: true } } },
   });

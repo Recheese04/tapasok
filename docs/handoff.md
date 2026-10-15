@@ -36,6 +36,11 @@ Tapasok is a student-organization management system.
 - **Shared test password:** the shared test password ("password") is intended. Never force password changes.
 - **No messaging:** no chat or direct-messaging feature (the adviser said it is not needed).
 - **Design:** keep the current purple web UI (`src/app/globals.css`, `src/components/shared/ui.tsx`). Reuse those components.
+- **Soft delete:** deleting events (unused drafts), announcements, documents, landing pictures and feedback hides them and
+  can be undone ("Recently deleted" on each page; Landing Page for pictures and feedback). Attendance and money are never
+  deleted. `src/lib/database/soft-delete.ts` explains the rules; every normal query filters `deletedAt: null`.
+- **Landing page:** System Admin chooses which published events appear (with up to 6 pictures each) and approves ratings
+  and comments before they are public (`src/features/landing/`). Members rate from "Rate Tapasok".
 - **Pushing:** do not commit or push without the owner's explicit OK. Pushing `main` deploys to production immediately.
   No production data changes and no migrations without approval.
 
@@ -51,6 +56,7 @@ Tapasok is a student-organization management system.
 | Firmware (NodeMCU ESP8266 + RC522, SDA D2, RST D1, 3.3 V) | `firmware/tapasok_rfid/tapasok_rfid.ino`, guide `firmware/README.md` |
 | Mobile app | `mobile/` (role-based tools in `mobile/src/roles.ts`) |
 | SEO | `src/app/robots.ts`, `src/app/sitemap.ts`, landing metadata in `src/app/page.tsx` |
+| Landing events + feedback | `src/features/landing/` (images.ts, feedback.ts, public-sections.tsx), admin page `/landing-page`, member page `/feedback` |
 
 ## How to check work
 
@@ -71,7 +77,7 @@ Tapasok is a student-organization management system.
    `sitemap.xml`, and request indexing.
 4. **Old pending join requests in production:** not counted yet. If the owner wants, count them read-only, then (with
    approval) turn them into memberships.
-5. **Uploaded files:** stored on Vercel's temporary disk. Move them to object storage (e.g. Supabase Storage) before relying
-   on uploads.
+5. **Uploaded files:** documents, payment proofs and expense receipts are stored on Vercel's temporary disk. Move them to
+   object storage (e.g. Supabase Storage) before relying on them. Profile and landing-page pictures are in the database.
 6. **No staging environment exists:** a separate staging deployment and database were planned for RFID load and region
    tests.

@@ -43,7 +43,7 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
       }),
       db.consequenceRule.findMany({ where: { organizationId: orgId }, orderBy: { name: "asc" }, include: { _count: { select: { consequences: true } } } }),
       manage ? db.organizationMember.findMany({ where: { organizationId: orgId, endedAt: null }, select: { user: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { user: { lastName: "asc" } } }) : [],
-      manage ? db.event.findMany({ where: { organizationId: orgId }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
+      manage ? db.event.findMany({ where: { organizationId: orgId, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
     ]);
     return { total, rows, rules, members, events };
   })() : null;

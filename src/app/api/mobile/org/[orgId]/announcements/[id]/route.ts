@@ -11,7 +11,7 @@ export const POST = orgAuthed<{ params: Promise<{ orgId: string; id: string }> }
   const { id } = await ctx.params;
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!z.uuid().safeParse(id).success || !parsed.success) return fail(400, "BAD_REQUEST", "Invalid request.");
-  const a = await db.announcement.findFirst({ where: { id, organizationId: orgId }, select: { status: true, publishedAt: true } });
+  const a = await db.announcement.findFirst({ where: { id, organizationId: orgId, deletedAt: null }, select: { status: true, publishedAt: true } });
   if (!a) return fail(404, "NOT_FOUND", "Announcement not found.");
   const publish = parsed.data.status === "PUBLISHED";
   const first = publish && a.status !== "PUBLISHED";

@@ -35,7 +35,7 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "off" },
 ];
 
-const FILE_ROUTES = ["/fees/expenses/:id/receipt", "/fees/proof/:id", "/documents/:id/download", "/users/:id/photo"];
+const FILE_ROUTES = ["/fees/expenses/:id/receipt", "/fees/proof/:id", "/documents/:id/download", "/users/:id/photo", "/event-images/:id"];
 const fileHeaders = [
   ...securityHeaders.filter((h) => h.key !== "Content-Security-Policy"),
   { key: "Content-Security-Policy", value: "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'" },
@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       // Every page and API route gets the site policy...
-      { source: "/((?!fees/expenses/[^/]+/receipt|fees/proof/|documents/[^/]+/download|users/[^/]+/photo).*)", headers: securityHeaders },
+      { source: "/((?!fees/expenses/[^/]+/receipt|fees/proof/|documents/[^/]+/download|users/[^/]+/photo|event-images/).*)", headers: securityHeaders },
       // ...except user-uploaded files, which get a sandbox policy instead: even a crafted file can never run script here.
       ...FILE_ROUTES.map((source) => ({ source, headers: fileHeaders })),
       // Signed-in data must never be stored by shared caches or the browser's back/forward cache on a shared PC.

@@ -5,7 +5,10 @@ import { Pagination, parsePage } from "@/components/shared/pagination";
 import { Badge, Page, PageHeader, primaryButton, Table, Td } from "@/components/shared/ui";
 import { canOrg, requireOrgPermissionAnywhere, orgIdsWith } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/format";
-import { listEvents } from "@/features/events/queries";
+import { deletedEvents, listEvents } from "@/features/events/queries";
+import { restoreEventAction } from "@/features/events/actions";
+import { DeletedList } from "@/components/shared/deleted-list";
+import { deleterNames, recentlyRestored } from "@/lib/database/soft-delete";
 import { EVENT_TONE } from "@/features/events/constants";
 import { EventCreateModal, EventEditModal, EventQrModal } from "@/features/events/event-modals";
 
@@ -22,7 +25,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const when = sp.when === "past" ? "past" : "upcoming";
   const page = parsePage(sp.page);
-  const { total, rows } = await listEvents(user, { when, page });
+  const [{ total, rows }, deleted] = await Promise.all([listEvents(user, { when, page }), deletedEvents(user)]);
+  const deleters = await deleterNames(deleted.map((d) => d.deletedById));
   const canCreate = orgIdsWith(user, "events.manage").length > 0;
 
   // The list state is kept in the URL; a dialog is just one more parameter, and closing it returns to this exact list.
@@ -56,7 +60,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
               <Td>{e.organization.name}</Td>
               <Td>{formatDateTime(e.startsAt)}</Td>
               <Td>{e.venue}</Td>
-              <Td><Badge tone={EVENT_TONE[e.status]}>{e.status.charAt(0) + e.status.slice(1).toLowerCase()}</Badge></Td>
+              <Td><span className="flex flex-wrap gap-1"><Badge tone={EVENT_TONE[e.status]}>{e.status.charAt(0) + e.status.slice(1).toLowerCase()}</Badge>{recentlyRestored(e.restoredAt) && <Badge tone="purple">Restored</Badge>}</span></Td>
               <Td>
                 <div className="flex flex-wrap gap-3 text-sm">
                   <Link className="font-medium text-primary hover:underline" href={`/events/${e.id}`}>View</Link>
@@ -69,6 +73,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         </Table>
       )}
       <Pagination page={page} total={total} basePath="/events" params={{ when }} />
+      <DeletedList noun="event" field="eventId" action={restoreEventAction}
+        items={deleted.map((d) => ({ id: d.id, title: d.title, detail: `${d.organization.name} · ${formatDateTime(d.startsAt)}`, deletedAt: d.deletedAt!, deletedBy: d.deletedById ? deleters.get(d.deletedById) : null }))} />
 
       {/* Exactly one dialog at a time; Edit and QR Code never share one. */}
       {sp.new === "1" ? <EventCreateModal user={user} closeHref={closeHref} />

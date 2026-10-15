@@ -14,6 +14,9 @@ forms) can grant any position other than Member.
 |---|---|---|---|---|---|---|---|---|
 | User Management (students, faculty/staff, CSV import, positions), academic setup, organizations, system settings & report | Yes | - | - | - | - | - | - | - |
 | Assign President / Adviser | Yes | - | - | - | - | - | - | - |
+| Landing page: event pictures, which events are shown, approve / hide / delete / restore ratings and comments | Yes | - | - | - | - | - | - | - |
+| Rate Tapasok (1-5 stars, optional comment; one per account, shown after approval) | - | Yes | Yes | Yes | Yes | Yes | - (Adviser-only accounts) | Yes |
+| Restore deleted events / announcements / documents (same position that may delete them) | - | Yes | Yes (announcements, documents, events) | - | - | Yes (events) | - | - |
 | Add / remove members; join codes | Yes | Yes | - | - | - | - | - | - |
 | Designate officers (change a position among Member, Officer, Secretary, Treasurer, Auditor) | Yes | Yes | - | - | - | - | Yes | - |
 | Join code (generate/revoke) | Yes | Yes | - | - | - | - | - | - |
@@ -54,4 +57,9 @@ forms) can grant any position other than Member.
 - **Attendance, obligations and consequences are separate records.** An absence or an unfinished obligation never creates a consequence by itself; only a rule attached to the event, or an authorized manual record, does.
 - **Advisers are not student attendees**, so they are never marked absent.
 - **Fines are completed by payment**, not by hand; only community-service obligations are completed manually.
+- **Deleting is reversible (soft delete)** for events (unused drafts only), announcements, documents, landing-page pictures and
+  feedback: the record is hidden everywhere and listed under "Recently deleted" for whoever may restore it. Attendance,
+  payments, fees and finance are never deleted; they keep their void / reversal / correction workflows. Unused configuration
+  (a fee type never assessed, a consequence rule never applied, a draft evaluation with no answers, an academic entry nothing
+  uses) can still be removed permanently, after a confirmation, because no history refers to it.
 - Messaging between members is intentionally not part of the system (adviser's guidance); use announcements and notifications.
