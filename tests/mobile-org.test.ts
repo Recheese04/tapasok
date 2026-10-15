@@ -61,10 +61,10 @@ describe("mobile org dashboards: each position gets its own capabilities, enforc
     const expected = {
       MEMBER: [],
       OFFICER: ["members.basic", "events.manage", "attendance.view_org", "evaluations.results", "evaluations.manage", "obligations.view_org"],
-      PRESIDENT: ["members.basic", "members.roster", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "fees.view_org", "fees.manage", "reports.finance", "expenses.approve", "evaluations.results", "evaluations.manage", "obligations.view_org"],
+      PRESIDENT: ["members.basic", "members.roster", "joinrequests.review", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "fees.view_org", "fees.manage", "reports.finance", "expenses.approve", "evaluations.results", "evaluations.manage", "obligations.view_org"],
       TREASURER: ["members.basic", "fees.view_org", "fees.manage", "reports.finance", "expenses.record"],
       AUDITOR: ["members.basic", "fees.view_org", "reports.finance"],
-      SECRETARY: ["members.basic", "members.roster", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "evaluations.results", "evaluations.manage", "obligations.view_org"],
+      SECRETARY: ["members.basic", "members.roster", "joinrequests.review", "events.manage", "attendance.view_org", "announcements.manage", "documents.manage", "evaluations.results", "evaluations.manage", "obligations.view_org"],
     } as const;
     for (const [role, caps] of Object.entries(expected)) {
       const token = await tokenFor(w.a[role as keyof typeof w.a].id);

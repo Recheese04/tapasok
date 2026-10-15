@@ -39,6 +39,9 @@ export function OfficerSection({ overview }: { overview: OrgOverview }) {
       {c["expenses.approve"] && (f?.pendingExpenseCount ?? 0) > 0 ? (
         <Notice icon="receipt" tone="danger" title={`${f!.pendingExpenseCount} expense${f!.pendingExpenseCount === 1 ? "" : "s"} to approve`} text={`${peso(f!.pendingExpenses)} waiting for your decision`} onPress={() => router.push({ pathname: "/manage/expenses", params: { filter: "PENDING" } })} />
       ) : null}
+      {(overview.members?.pendingJoinRequests ?? 0) > 0 ? (
+        <Notice icon="person-add" tone="info" title={`${overview.members!.pendingJoinRequests} join request${overview.members!.pendingJoinRequests === 1 ? "" : "s"}`} text="Tap to accept or reject" onPress={() => router.push("/manage/join-requests")} />
+      ) : null}
 
       <ActionGrid actions={actionsFor(role, overview)} />
 

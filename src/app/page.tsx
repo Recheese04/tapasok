@@ -227,7 +227,7 @@ function Roles() {
   const roles: [string, IconName, string, string[]][] = [
     ["President", "building", "The whole organization at a glance.", ["Members, events and check-in trends", "Payments waiting for verification", "Create events and announcements"]],
     ["Treasurer", "wallet", "Money in, money owed, money verified.", ["Collected, outstanding and awaiting totals", "Confirm GCash payments, record cash", "Balances member by member"]],
-    ["Secretary", "file", "Records and communication.", ["Minutes, resolutions and documents", "Announcements to targeted members", "The member roster"]],
+    ["Secretary", "file", "Records and communication.", ["Minutes, resolutions and documents", "Announcements to targeted members", "Join requests and the member roster"]],
     ["Member", "users", "Everything about you, nothing else.", ["Next event and one-tap check-in", "Attendance record and fees", "Announcements and notifications"]],
   ];
   return (

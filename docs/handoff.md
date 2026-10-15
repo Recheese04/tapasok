@@ -25,8 +25,10 @@ Tapasok is a student-organization management system.
   - The Adviser never makes approvals or financial actions, and is not assessed member fees.
   - Adviser-only accounts have no personal "My …" pages.
   - `tests/role-rules.test.ts` enforces all of this.
-- **Joining organizations is immediate:** no approval step, and always as Member. Old join requests are kept as history and
-  are never deleted.
+- **Joining co-curricular organizations needs approval:** a student sends a request, and the organization's Secretary (or
+  President) accepts or rejects it. They are notified of each new request. Accepted students become Members only.
+  (Joining was briefly immediate; the owner reversed that on 2026-10-15 so organizations meant for a specific group can
+  screen who joins.)
 - **Card registration:** RFID card registration is System Admin only. A scan captures the UID and the admin confirms it;
   replacing a card or moving it to another student needs explicit confirmation.
 - **RFID terminals:** a terminal records taps into the one session its organization has open ("Activate scanner" on the
@@ -44,7 +46,7 @@ Tapasok is a student-organization management system.
 | Permissions | `src/lib/permissions/policy.ts`; per-organization checks only. System Admin has no implicit org access. |
 | Organizations admin dashboard + student population | `src/features/organizations/admin-view.tsx`, `src/features/academic/population.ts` |
 | User Management filters / sorting | `src/features/users/queries.ts`, `src/features/users/user-filters.tsx` |
-| Joining | `src/features/organizations/requests.ts` (`joinOrganization`) |
+| Join requests | `src/features/organizations/requests.ts` (submit / decide), review panel `join-review.tsx` |
 | RFID endpoint | `src/app/api/rfid/scan/route.ts`; card registration in `src/features/attendance/rfid-enrollment.ts` |
 | Firmware (NodeMCU ESP8266 + RC522, SDA D2, RST D1, 3.3 V) | `firmware/tapasok_rfid/tapasok_rfid.ino`, guide `firmware/README.md` |
 | Mobile app | `mobile/` (role-based tools in `mobile/src/roles.ts`) |

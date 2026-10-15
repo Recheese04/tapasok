@@ -10,7 +10,7 @@ import { authed, fail } from "./api";
 
 /** The capabilities the mobile app adapts its screens to. The app only mirrors these; every route re-checks them. */
 export const MOBILE_CAPABILITIES = [
-  "members.basic", "members.roster",
+  "members.basic", "members.roster", "joinrequests.review",
   "events.manage", "attendance.view_org", "announcements.manage", "documents.manage",
   "fees.view_org", "fees.manage", "reports.finance", "expenses.record", "expenses.approve", "evaluations.results", "evaluations.manage", "obligations.view_org",
 ] as const satisfies readonly OrgPermission[];

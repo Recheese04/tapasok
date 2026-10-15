@@ -28,8 +28,8 @@ automated test in `tests/` that runs against a real PostgreSQL database.
 - The Adviser is read-only everywhere except designating officers (changing an existing member's position among Member,
   Officer, Secretary, Treasurer and Auditor in their own organization). Every other write action and mobile endpoint refuses
   the Adviser (tested, with a check that nothing was changed or logged in the Adviser's name).
-- Students join interest-based organizations directly, always as Member (never an officer position); the server checks the
-  account and organization, and a database index allows one active membership per person per organization.
+- Join requests are decided only by the President or Secretary of the request's own organization; nobody can decide their
+  own request.
 
 ## Input, files and output
 

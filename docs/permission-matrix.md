@@ -7,7 +7,7 @@ for every position, inside and outside the user's organization.
 
 Rules: least privilege. Organization positions apply only inside the organization where they are held (one person can be
 President of one and Member of another). **System Admin is a separate system-level flag, not an organization position, and has
-no implicit access to organization modules.** Nothing (join codes, joining directly, CSV imports, automatic academic mapping,
+no implicit access to organization modules.** Nothing (join codes, join requests, CSV imports, automatic academic mapping,
 forms) can grant any position other than Member.
 
 | Capability | Admin | President | Secretary | Treasurer | Auditor | Officer | Adviser | Member |
@@ -17,7 +17,8 @@ forms) can grant any position other than Member.
 | Add / remove members; join codes | Yes | Yes | - | - | - | - | - | - |
 | Designate officers (change a position among Member, Officer, Secretary, Treasurer, Auditor) | Yes | Yes | - | - | - | - | Yes | - |
 | Join code (generate/revoke) | Yes | Yes | - | - | - | - | - | - |
-| Join an interest-based (co-curricular) organization directly, as Member (no approval) | - | - | - | - | - | - | - | Yes (any student) |
+| Review join requests (approve / reject, own organization only) | - | Yes | Yes | - | - | - | - | - |
+| Request to join an organization; see the decision | - | - | - | - | - | - | - | Yes (any student) |
 | Roster with emails | Yes | Yes | Yes | - | - | - | Yes | - |
 | Names + student numbers only | - | Yes | Yes | Yes | Yes | Yes | Yes | - |
 | View events / announcements / documents | - | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
@@ -45,7 +46,7 @@ forms) can grant any position other than Member.
 | Obligations: view organization | - | Yes | Yes | - | - | Yes | Yes | - |
 
 ## Decisions where the specification gave no explicit rule
-- **Positions are capability bundles.** Secretary: attendance, minutes/documents, announcements, the member roster. Treasurer and President: all money.
+- **Positions are capability bundles.** Secretary: attendance, minutes/documents, announcements, join requests. Treasurer and President: all money.
   Auditor: read-only finance. Officer: events and scanning. **Adviser: read-only** oversight, with one approved exception: designating officers (rosters, attendance,
   obligations, consequences, evaluation results, finance and reports); the Adviser holds no capability that changes data, never
   scans attendance and is not assessed member fees. Waivers and excuses moved to the President (and Secretary for excuses).

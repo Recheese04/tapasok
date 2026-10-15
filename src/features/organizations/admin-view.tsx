@@ -135,7 +135,7 @@ export async function AdminOrganizations({ sp }: { sp: AdminSp }) {
                       <tr key={o.id} className="border-t border-border hover:bg-primary-soft/20">
                         <td className="px-4 py-3">
                           <Link href={href({ view: o.id })} scroll={false} className="font-medium hover:text-primary hover:underline">{o.name}</Link>
-                          <p className="text-xs text-muted">{[o.acronym, o.unit].filter(Boolean).join(" · ") || "—"}</p>
+                          <p className="text-xs text-muted">{[o.acronym, o.unit].filter(Boolean).join(" · ") || "—"}{o.pendingRequests ? <> · <span className="text-warning">{o.pendingRequests} join request{o.pendingRequests === 1 ? "" : "s"}</span></> : null}</p>
                         </td>
                         <td className="px-4 py-3"><Badge tone="gray">{SCOPE[o.scope]}</Badge>{o.autoEnroll ? <p className="mt-1 text-xs text-muted">Automatic membership</p> : null}</td>
                         <td className="px-4 py-3">{o.adviser ?? <span className="text-xs font-medium text-danger">No adviser</span>}</td>
@@ -225,6 +225,7 @@ async function DetailsDialog({ id, href }: { id: string; href: (c: Record<string
           {fact("Created", formatDate(o.createdAt))}
           {fact("Active members", o.members)}
           {fact("Students among members", o.students)}
+          {fact("Pending join requests", o._count.joinRequests)}
           {fact("Events", o._count.events)}
           {fact("Announcements", o._count.announcements)}
           {fact("Documents", o._count.documents)}

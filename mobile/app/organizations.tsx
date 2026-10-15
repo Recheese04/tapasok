@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { ApiError, api } from "../src/api/client";
@@ -6,7 +6,7 @@ import type { JoinableOrg } from "../src/api/types";
 import { useOrg } from "../src/org/OrgContext";
 import { useAuth } from "../src/auth/AuthContext";
 import { Badge, Body, Button, Card, Empty, ErrorState, ListGroup, ListItem, Loading, ScreenHeader, SectionTitle, Txt } from "../src/components/ui";
-import { useConfirm, useToast } from "../src/components/kit";
+import { Field, Sheet, useConfirm, useToast } from "../src/components/kit";
 import { fmtDate, roleLabel } from "../src/format";
 import { colors, fonts, space } from "../src/theme";
 import { useLoad } from "../src/useLoad";
@@ -22,7 +22,7 @@ export default function Organizations() {
       <ScreenHeader eyebrow="Membership" title="My organizations" back={() => router.back()} />
       {loading && !data ? <Loading /> : error && !data ? <ErrorState error={error} onRetry={reload} /> : (
         <Body tabs={false} refreshing={refreshing} onRefresh={refresh}>
-          {data?.organizations.length === 0 ? <Empty icon="people-outline" title="No organizations yet" text="Join one below, or ask an officer to add you." /> : data?.organizations.map((o) => {
+          {data?.organizations.length === 0 ? <Empty icon="people-outline" title="No organizations yet" text="Ask to join an organization below, or ask an officer to add you." /> : data?.organizations.map((o) => {
             const on = active?.id === o.id;
             const officer = o.positions.some((p) => p.role !== "MEMBER");
             return (
@@ -59,58 +59,68 @@ const STATUS = {
   CANCELLED: { label: "Cancelled", tone: "neutral" },
 } as const;
 
-/** Join an interest-based organization right away (no approval), and see any earlier join requests (history). */
+/** Ask to join an interest-based organization and follow your requests (pending, accepted or rejected). */
 function JoinSection({ onJoined }: { onJoined: () => void }) {
   const toast = useToast();
   const confirm = useConfirm();
   const { refreshMe } = useAuth();
   const { data, reload } = useLoad(api.joinOptions);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [asking, setAsking] = useState<JoinableOrg | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  // An accepted request is a new membership: refresh the account so Home and the organization list include it.
+  const acceptedCount = data?.requests.filter((r) => r.status === "APPROVED").length ?? 0;
+  useEffect(() => { if (acceptedCount) { void refreshMe(); onJoined(); } }, [acceptedCount]);
   if (!data) return null;
 
-  const join = async (o: JoinableOrg) => {
-    if (!(await confirm({ title: `Join ${o.name}?`, message: "You become a member right away.", confirmLabel: "Join", icon: "person-add-outline" }))) return;
-    setBusy(o.id);
+  const send = async () => {
+    if (!asking) return;
+    setBusy(true);
     try {
-      const r = await api.joinOrganization(o.id);
-      toast.show(`You joined ${r.organization ?? o.name}`);
-      void reload(); void refreshMe(); onJoined(); // the new membership shows on Home and in the list above
+      await api.requestToJoin(asking.id, message.trim() || undefined);
+      toast.show("Request sent. An officer will review it.");
+      setAsking(null); setMessage(""); void reload();
     } catch (e) { toast.show(e instanceof ApiError ? e.message : "Something went wrong.", "error"); }
-    finally { setBusy(null); }
+    finally { setBusy(false); }
   };
-  const withdraw = async (id: string, name: string) => {
-    if (!(await confirm({ title: "Withdraw this request?", message: `Your old request to join ${name} will be withdrawn. You can still join directly.`, confirmLabel: "Withdraw", tone: "danger" }))) return;
-    try { await api.cancelJoinRequest(id); toast.show("Request withdrawn"); void reload(); }
+  const cancel = async (id: string, name: string) => {
+    if (!(await confirm({ title: "Cancel this request?", message: `Your request to join ${name} will be withdrawn.`, confirmLabel: "Cancel request", tone: "danger" }))) return;
+    try { await api.cancelJoinRequest(id); toast.show("Request cancelled"); void reload(); }
     catch (e) { toast.show(e instanceof ApiError ? e.message : "Something went wrong.", "error"); }
   };
   return (
     <>
-      <SectionTitle caption="Open to every student. You become a member right away.">Join an organization</SectionTitle>
-      {data.organizations.length === 0 ? <Empty icon="people-outline" title="Nothing to join right now" text="You are already in every open organization, or none are open yet." /> : data.organizations.map((o) => (
-        <Card key={o.id} style={{ gap: space.sm }}>
-          <Txt variant="h3">{o.name}{o.acronym ? ` (${o.acronym})` : ""}</Txt>
-          <Txt variant="small">{o.members} member{o.members === 1 ? "" : "s"}</Txt>
-          {o.description ? <Txt variant="body" color={colors.textSecondary} numberOfLines={3}>{o.description}</Txt> : null}
-          <Button label="Join" size="sm" icon="person-add" loading={busy === o.id} disabled={!!busy} onPress={() => void join(o)} />
-        </Card>
-      ))}
       {data.requests.length > 0 ? (
         <>
-          <SectionTitle caption="From before joining became immediate">Earlier join requests</SectionTitle>
+          <SectionTitle caption="Officers accept or reject each request">My requests</SectionTitle>
           <ListGroup>
             {data.requests.map((r) => {
               const st = STATUS[r.status];
               return (
                 <ListItem key={r.id} title={r.organization}
-                  subtitle={[`Sent ${fmtDate(r.createdAt)}`, r.note ? `“${r.note}”` : null].filter(Boolean).join(" · ")}
+                  subtitle={[`Sent ${fmtDate(r.createdAt)}`, r.decidedAt && r.status !== "CANCELLED" ? `decided ${fmtDate(r.decidedAt)}` : null, r.note ? `“${r.note}”` : null].filter(Boolean).join(" · ")}
                   right={<Badge label={st.label} tone={st.tone} />}
-                  onPress={r.status === "PENDING" ? () => void withdraw(r.id, r.organization) : undefined}
-                  accessibilityLabel={r.status === "PENDING" ? `${r.organization}, pending. Tap to withdraw` : `${r.organization}, ${st.label}`} />
+                  onPress={r.status === "PENDING" ? () => void cancel(r.id, r.organization) : undefined}
+                  accessibilityLabel={r.status === "PENDING" ? `${r.organization}, pending. Tap to cancel the request` : `${r.organization}, ${st.label}`} />
               );
             })}
           </ListGroup>
         </>
       ) : null}
+      <SectionTitle caption="Interest-based organizations open for requests">Join an organization</SectionTitle>
+      {data.organizations.length === 0 ? <Empty icon="people-outline" title="Nothing to join right now" text="Organizations you can ask to join appear here." /> : data.organizations.map((o) => (
+        <Card key={o.id} style={{ gap: space.sm }}>
+          <Txt variant="h3">{o.name}{o.acronym ? ` (${o.acronym})` : ""}</Txt>
+          {o.description ? <Txt variant="body" color={colors.textSecondary} numberOfLines={3}>{o.description}</Txt> : null}
+          <Button label="Request to join" variant="secondary" size="sm" icon="person-add" onPress={() => setAsking(o)} />
+        </Card>
+      ))}
+      <Sheet visible={!!asking} onClose={() => setAsking(null)} title={`Join ${asking?.name ?? ""}`} subtitle="An officer reviews your request. You will be notified of the decision.">
+        <View style={{ gap: space.md }}>
+          <Field label="Message to the officers (optional)" value={message} onChangeText={setMessage} maxLength={300} multiline />
+          <Button label="Send request" icon="send" loading={busy} onPress={() => void send()} />
+        </View>
+      </Sheet>
     </>
   );
 }

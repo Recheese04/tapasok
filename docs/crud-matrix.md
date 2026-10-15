@@ -12,7 +12,7 @@ server action or query, not only in the UI. Roles are from `docs/permission-matr
 | System admin privilege | Grant | Yes | Revoke | N/A | System Admin only; never self; last admin protected. |
 | Organizations | Yes (System Admin) | Yes (members: their own; admin: all) | Yes (System Admin) | Restricted | Archive instead; all child records reference it. |
 | Memberships and positions | Yes (President; System Admin) | Yes (roster rules by role) | Yes: change position (history kept) | Yes: end membership (history kept) | President/Adviser positions need a System Admin. |
-| Join codes; joining directly | Codes: President. Joining: any student (co-curricular, as Member) | Yes | Revoke codes; withdraw own old requests | N/A | Hashed codes; old join requests kept as history. |
+| Join codes, join requests | Yes (President) | Yes | Revoke / approve / reject / cancel own | N/A | Hashed codes; one-time redemption. |
 | Events | Yes (President, Secretary, Officer — Org) | Yes (members of the org; drafts hidden) | Yes (same; sessions lock after attendance) | **Yes, only unused drafts**; otherwise Cancel | Creator is recorded server-side and never changes on edit. |
 | Event sessions | With the event | Yes | With the event; open/close; revoke QR | With the event (draft only) | Finalizing marks absences and applies attached rules. |
 | Attendance | Check-in / manual entry (President, Secretary) | Own; org view for President, Secretary, Officer, Adviser | Correct / excuse with a reason (audited) | Restricted | Attendance is a legal-style record: corrected, never deleted. |
