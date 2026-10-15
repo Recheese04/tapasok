@@ -1,5 +1,6 @@
 "use client";
 
+import { LogoMark } from "@/features/landing/brand";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -157,7 +158,7 @@ export function AppFrame({ nav, topbar, children }: { nav: React.ReactNode; topb
         className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85%] flex-col border-r border-border bg-surface p-4 shadow-xl transition-transform md:sticky md:top-0 md:z-auto md:h-screen md:w-64 md:max-w-none md:translate-x-0 md:shadow-none ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <Link href="/dashboard" className="mb-6 flex items-center gap-2 px-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Icon name="cap" className="h-5 w-5" /></span>
+          <LogoMark className="h-9 w-9" />
           <span className="text-xl font-semibold tracking-tight">Tapasok</span>
         </Link>
         {nav}

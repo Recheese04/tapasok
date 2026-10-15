@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,7 +37,7 @@ export default function Login() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
         <LinearGradient colors={gradients.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.hero, { paddingTop: insets.top + 48 }]}>
           <Rings size={340} right={-120} top={-120} />
-          <View style={s.logo}><Ionicons name="school" size={34} color={colors.navy900} /></View>
+          <Image source={require("../assets/logo-mark.png")} style={s.logo} accessibilityIgnoresInvertColors />
           <Txt variant="display" color={colors.onDark} style={{ marginTop: space.lg }}>Tapasok</Txt>
           <Txt variant="body" color={colors.onDarkMuted} align="center" style={{ marginTop: 4, maxWidth: 280 }}>Events, attendance and dues for your student organizations.</Txt>
         </LinearGradient>
@@ -93,7 +93,7 @@ export default function Login() {
 
 const s = StyleSheet.create({
   hero: { alignItems: "center", paddingBottom: 92, paddingHorizontal: space.xl, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl, overflow: "hidden" },
-  logo: { width: 72, height: 72, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  logo: { width: 84, height: 84, borderRadius: 22 },
   input: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: space.sm, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surfaceAlt, paddingHorizontal: space.md },
   focus: { borderColor: colors.primary, backgroundColor: colors.surface },
   text: { flex: 1, minHeight: 48, fontFamily: fonts.medium, fontSize: 15, color: colors.text },
