@@ -94,6 +94,9 @@ export const api = {
   cancelJoinRequest: (id: string) => request<{ ok: true }>("POST", `/join/${id}`, {}),
   notifications: () => get<{ notifications: Notice[] }>("/notifications"),
   markAllRead: () => request<{ ok: true }>("POST", "/notifications", { action: "read_all" }),
+  markRead: (id: string) => request<{ ok: true }>("POST", "/notifications", { action: "read", id }),
+  clearNotification: (id: string) => request<{ ok: true }>("POST", "/notifications", { action: "clear", id }),
+  clearAllNotifications: () => request<{ ok: true }>("POST", "/notifications", { action: "clear_all" }),
   announcements: () => get<{ announcements: Announcement[] }>("/announcements"),
 
   // Organization tools. The organization id is only a request; the server checks the caller's position in it on every call.

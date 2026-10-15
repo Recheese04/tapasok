@@ -37,12 +37,15 @@ export function RfidPanel({ userId, student, current, devices }: { userId: strin
   const [removing, startRemove] = useTransition();
   const done = useCallback((text: string) => { setFlash({ kind: "success", text }); router.refresh(); }, [router]);
 
-  const remove = () => startRemove(async () => {
+  // Confirm first, outside the transition: a dialog opened inside one is held back until it ends, so it would never show.
+  const remove = async () => {
     if (!(await confirm({ title: "Remove this card?", message: `Card ${current} will no longer check ${student.name} in. You can register a new card afterwards.`, confirmLabel: "Remove card", danger: true }))) return;
-    const fd = new FormData(); fd.set("userId", userId);
-    const res = await removeRfidAction(fd);
-    if (res.error) setFlash({ kind: "error", text: res.error }); else done(res.success ?? "Card removed.");
-  });
+    startRemove(async () => {
+      const fd = new FormData(); fd.set("userId", userId);
+      const res = await removeRfidAction(fd);
+      if (res.error) setFlash({ kind: "error", text: res.error }); else done(res.success ?? "Card removed.");
+    });
+  };
 
   return (
     <section id="rfid" className={`${box} scroll-mt-24`} aria-labelledby="rfid-title">

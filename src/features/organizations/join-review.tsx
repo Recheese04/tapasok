@@ -48,8 +48,13 @@ function RequestRow({ r }: { r: Pending }) {
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [pending, start] = useTransition();
 
-  const decide = (decision: "approve" | "reject") => start(async () => {
+  const decide = async (decision: "approve" | "reject") => {
+    // Ask BEFORE starting the transition: React holds back screen updates made inside a transition until it ends, so a
+    // dialog opened from inside one would never appear (and the Reject button would hang).
     if (decision === "reject" && !(await confirm({ title: "Reject this request?", message: `${r.name} will be told the request was declined${note ? " with your note" : ""}. They can ask again later.`, confirmLabel: "Reject", danger: true }))) return;
+    start(() => send(decision));
+  };
+  const send = async (decision: "approve" | "reject") => {
     const fd = new FormData();
     fd.set("requestId", r.id); fd.set("decision", decision); fd.set("note", note);
     try {
@@ -59,7 +64,7 @@ function RequestRow({ r }: { r: Pending }) {
     } catch {
       setMsg({ kind: "error", text: "You are not allowed to decide this request." });
     }
-  });
+  };
 
   const details = [r.studentNumber, r.program, r.yearLevel ? `Year ${r.yearLevel}` : null, r.department ?? r.college].filter(Boolean).join(" · ");
   return (
@@ -74,8 +79,8 @@ function RequestRow({ r }: { r: Pending }) {
         {msg?.kind === "success" ? null : (
           <div className="flex flex-wrap items-center gap-2">
             <input value={note} onChange={(e) => setNote(e.target.value)} aria-label={`Decision note for ${r.name} (optional)`} placeholder="Note to the student (optional)" maxLength={300} className="rounded-xl border border-border bg-surface px-3 py-1.5 text-sm" />
-            <button type="button" disabled={pending} onClick={() => decide("approve")} className={primaryButton}>{pending ? "Saving…" : "Approve"}</button>
-            <button type="button" disabled={pending} onClick={() => decide("reject")} className={actionDanger}>Reject</button>
+            <button type="button" disabled={pending} onClick={() => void decide("approve")} className={primaryButton}>{pending ? "Saving…" : "Approve"}</button>
+            <button type="button" disabled={pending} onClick={() => void decide("reject")} className={actionDanger}>Reject</button>
           </div>
         )}
       </div>

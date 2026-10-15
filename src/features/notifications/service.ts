@@ -29,3 +29,16 @@ export async function markAllRead(userId: string) {
 export async function markRead(userId: string, id: string) {
   await db.notification.updateMany({ where: { id, userId, readAt: null }, data: { readAt: new Date() } });
 }
+
+// Clearing removes the message from the person's own inbox. Notifications are only pointers to records that live
+// elsewhere (the announcement, the payment, the join request), so nothing of record is lost.
+export async function clearNotification(userId: string, id: string) {
+  await db.notification.deleteMany({ where: { id, userId } });
+}
+
+export async function clearAllNotifications(userId: string) {
+  await db.notification.deleteMany({ where: { userId } });
+}
+
+/** Where a notification's link may go: only a path on this site (never another site, never "//host"). */
+export const safeHref = (href: string | null) => (href && /^\/(?![/\\])/.test(href) ? href : "/notifications");
