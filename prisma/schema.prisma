@@ -78,8 +78,6 @@ model User {
   decidedRequests     JoinRequest[]          @relation("JoinRequestDecider")
   notifications       Notification[]
   siteFeedback        SiteFeedback[]
-  clearanceRequests   ClearanceRequest[]
-  clearanceSignoffs   ClearanceSignoff[]
 
   @@map("users")
 }
@@ -118,7 +116,6 @@ model Organization {
   joinRequests      JoinRequest[]
   devices           ScannerDevice[]
   feeAssessments    StudentFee[]
-  clearanceRequests ClearanceRequest[]
   createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -710,7 +707,6 @@ model Semester {
   events            Event[]
   assessments       StudentFee[]
   feeTypes          FeeType[]
-  clearanceRequests ClearanceRequest[]
   announcements     Announcement[]
   documents         Document[]
 
@@ -904,7 +900,7 @@ model RfidEnrollment {
   @@map("rfid_enrollments")
 }
 
-// ---------------------------------------------------------------- Stage C/D: consequences, ledger, clearance, communication
+// ---------------------------------------------------------------- Stage C/D: consequences, ledger, communication
 
 enum RuleTrigger {
   ABSENT
@@ -938,17 +934,7 @@ enum PaymentStatus {
   REJECTED
 }
 
-enum ClearanceStatus {
-  REQUESTED
-  ELIGIBLE
-  CLEARED
-  REJECTED
-}
 
-enum SignoffDecision {
-  APPROVED
-  REJECTED
-}
 
 enum DocumentCategory {
   MINUTES
@@ -986,42 +972,7 @@ model LedgerAdjustment {
   @@map("ledger_adjustments")
 }
 
-model ClearanceRequest {
-  id              String          @id @default(uuid()) @db.Uuid
-  userId          String          @map("user_id") @db.Uuid
-  organizationId  String          @map("organization_id") @db.Uuid
-  semesterId      String          @map("semester_id") @db.Uuid
-  status          ClearanceStatus @default(REQUESTED)
-  requestedAt     DateTime        @default(now()) @map("requested_at") @db.Timestamptz(3)
-  eligibleAt      DateTime?       @map("eligible_at") @db.Timestamptz(3)
-  issuedAt        DateTime?       @map("issued_at") @db.Timestamptz(3)
-  certificateCode String?         @unique @map("certificate_code")
 
-  user         User               @relation(fields: [userId], references: [id], onDelete: Restrict)
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  semester     Semester           @relation(fields: [semesterId], references: [id], onDelete: Restrict)
-  signoffs     ClearanceSignoff[]
-
-  @@unique([userId, organizationId, semesterId])
-  @@index([organizationId, status])
-  @@map("clearance_requests")
-}
-
-model ClearanceSignoff {
-  id         String           @id @default(uuid()) @db.Uuid
-  requestId  String           @map("request_id") @db.Uuid
-  role       OrganizationRole // the position that signed (President, Adviser, ...)
-  signedById String           @map("signed_by_id") @db.Uuid
-  decision   SignoffDecision
-  note       String?
-  signedAt   DateTime         @default(now()) @map("signed_at") @db.Timestamptz(3)
-
-  request  ClearanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  signedBy User             @relation(fields: [signedById], references: [id], onDelete: Restrict)
-
-  @@unique([requestId, role])
-  @@map("clearance_signoffs")
-}
 
 model Notification {
   id        String    @id @default(uuid()) @db.Uuid

@@ -41,6 +41,8 @@ Tapasok is a student-organization management system.
   deleted. `src/lib/database/soft-delete.ts` explains the rules; every normal query filters `deletedAt: null`.
 - **Landing page:** System Admin chooses which published events appear (with up to 6 pictures each) and approves ratings
   and comments before they are public (`src/features/landing/`). Members rate from "Rate Tapasok".
+- **No semester clearance:** the planned clearance workflow (Phase 7 of the spec) was never built, and the owner removed
+  its unused tables (`clearance_requests`, `clearance_signoffs`) on 2026-10-17. Don't rebuild it unless asked.
 - **Pushing:** do not commit or push without the owner's explicit OK. Pushing `main` deploys to production immediately.
   No production data changes and no migrations without approval.
 

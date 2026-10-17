@@ -48,3 +48,6 @@ next-env.d.ts
 /storage
 
 tests/.tmp-storage
+
+.vercel
+.env*

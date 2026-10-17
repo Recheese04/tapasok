@@ -49,7 +49,7 @@ export default async function AcademicPage({ searchParams }: { searchParams: Pro
       include: {
         semesters: {
           orderBy: { sequence: "asc" },
-          include: { _count: { select: { members: true, enrollments: true, events: true, assessments: true, feeTypes: true, clearanceRequests: true, announcements: true, documents: true } } },
+          include: { _count: { select: { members: true, enrollments: true, events: true, assessments: true, feeTypes: true, announcements: true, documents: true } } },
         },
       },
     }),
