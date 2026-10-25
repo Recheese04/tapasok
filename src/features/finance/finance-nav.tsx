@@ -3,6 +3,7 @@ import { inputClass, secondaryButton } from "@/components/shared/ui";
 
 const TABS = [
   ["/fees/manage", "Fees & collections"],
+  ["/fees/masterlist", "Masterlist"],
   ["/fees/expenses", "Expenses & funds"],
   ["/fees/report", "Financial report"],
   ["/fees/audit", "Audit trail"],

@@ -12,6 +12,8 @@ import { ledger } from "@/features/fees/ledger";
 import { AdjustForm, AssessMemberForm, FeeTypeEdit, FeeTypeForm, PaymentForm } from "@/features/fees/forms";
 import { FinanceNav } from "@/features/finance/finance-nav";
 import { fundSummary } from "@/features/finance/funds";
+import { FinanceFilterBar } from "@/features/fees/finance-filter";
+import { filterLabel, filterParams, parseFinanceFilter, termOptions, termWhere, yearLevelWhere } from "@/features/fees/filters";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
 // request, so it cannot be prerendered or shared. The layout and loading.tsx stream the frame and a skeleton while it
@@ -27,10 +29,14 @@ const feeInclude = {
   payments: { orderBy: { createdAt: "desc" as const }, select: { id: true, amount: true, status: true, voidedAt: true, paidAt: true, method: true, reference: true, receiptCode: true, rejectionReason: true, proofKey: true } },
 };
 
-export default async function ManageFeesPage({ searchParams }: { searchParams: Promise<{ org?: string; page?: string }> }) {
+export default async function ManageFeesPage({ searchParams }: { searchParams: Promise<{ org?: string; page?: string; sy?: string; sem?: string; yl?: string }> }) {
   const user = await requireOrgPermissionAnywhere("fees.view_org");
   const sp = await searchParams;
   const page = parsePage(sp.page);
+  // School year / semester / year level: narrows the fees, the member ledger and the collection totals.
+  const filter = parseFinanceFilter(sp);
+  const terms = await termOptions();
+  const filtered = filter.sy !== null || filter.sem !== null || filter.yl !== null;
 
   const viewIds = orgIdsWith(user, "fees.view_org");
   const orgNames = new Map(user.memberships.map((m) => [m.organizationId, m.organizationName]));
@@ -38,10 +44,12 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
   const manage = orgId ? canOrg(user, "fees.manage", orgId) : false;
 
   const org = orgId ? await (async () => {
-    const where = { organizationId: orgId };
+    const base = { organizationId: orgId };
+    const where = { ...base, ...termWhere(filter), user: yearLevelWhere(filter) };
+    const feeTypeWhere = { ...base, ...(filter.sem ? { semesterId: filter.sem } : filter.sy ? { semester: { schoolYearId: filter.sy } } : {}) };
     const [feeTypes, events, total, rows, pendingPayments] = await Promise.all([
-      db.feeType.findMany({ where, orderBy: { createdAt: "desc" }, include: { _count: { select: { assignments: true } } } }),
-      manage ? db.event.findMany({ where: { ...where, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
+      db.feeType.findMany({ where: feeTypeWhere, orderBy: { createdAt: "desc" }, include: { _count: { select: { assignments: true } } } }),
+      manage ? db.event.findMany({ where: { ...base, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 50, select: { id: true, title: true } }) : [],
       db.studentFee.count({ where }),
       db.studentFee.findMany({
         where, orderBy: [{ title: "asc" }, { user: { lastName: "asc" } }], skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE,
@@ -52,7 +60,7 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
         },
       }),
       manage ? db.payment.findMany({
-        where: { status: "PENDING", voidedAt: null, studentFee: { organizationId: orgId } }, orderBy: { createdAt: "asc" },
+        where: { status: "PENDING", voidedAt: null, studentFee: where }, orderBy: { createdAt: "asc" },
         select: { id: true, amount: true, method: true, reference: true, receiptCode: true, createdAt: true, proofKey: true, studentFee: { select: { title: true, user: { select: { firstName: true, lastName: true } } } } },
       }) : [],
     ]);
@@ -76,9 +84,11 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
               <button type="submit" className={secondaryButton}>Switch</button>
             </form>
           )}
+          <FinanceFilterBar terms={terms} yearLevel />
+          {filtered && <p className="text-sm text-muted" role="status">Showing <strong className="text-foreground">{filterLabel(filter, terms)}</strong>. Expenses and the available balance always cover all time.</p>}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Card title="Collected (verified)"><p className="text-2xl font-semibold">{D(org.totals.paid)}</p><p className="text-xs text-muted">of {D(org.totals.due)} assessed</p></Card>
-            <Card title="Outstanding member fees"><p className="text-2xl font-semibold">{D(org.totals.due.sub(org.totals.paid))}</p><p className="text-xs text-muted">Owed, not yet collected</p></Card>
+            <Card title={filtered ? "Collected (this view)" : "Collected (verified)"}><p className="text-2xl font-semibold">{D(org.totals.paid)}</p><p className="text-xs text-muted">of {D(org.totals.due)} assessed</p></Card>
+            <Card title={filtered ? "Outstanding (this view)" : "Outstanding member fees"}><p className="text-2xl font-semibold">{D(org.totals.due.sub(org.totals.paid))}</p><p className="text-xs text-muted">Owed, not yet collected</p></Card>
             <Card title="Approved expenses"><p className="text-2xl font-semibold text-danger">{formatPeso(org.funds.expenses)}</p><p className="text-xs text-muted">{org.funds.pendingExpenseCount ? `${org.funds.pendingExpenseCount} pending approval` : "None pending"}</p></Card>
             <Card title="Available balance"><p className="text-2xl font-semibold text-primary">{formatPeso(org.funds.available)}</p><p className="text-xs text-muted">Collected{Number(org.funds.otherIncome) > 0 ? " + other funds" : ""} − expenses</p></Card>
           </div>
@@ -103,7 +113,7 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
           )}
 
           <Card title="Assessments">
-            {org.feeTypes.length === 0 ? <p className="text-sm text-muted">No assessments yet. Fines from attendance rules appear automatically in the ledger.</p> : (
+            {org.feeTypes.length === 0 ? <p className="text-sm text-muted">{filtered ? "No fees were created for this school year or semester." : "No assessments yet. Fines from attendance rules appear automatically in the ledger."}</p> : (
               <ul className="flex flex-col gap-3 text-sm">
                 {org.feeTypes.map((t) => (
                   <li key={t.id} className="flex flex-wrap items-center justify-between gap-3">
@@ -138,7 +148,7 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
             )}
           </Card>
 
-          {org.rows.length === 0 ? <EmptyState title="Nothing assessed yet" /> : (
+          {org.rows.length === 0 ? <EmptyState title={filtered ? "Nothing assessed in this view" : "Nothing assessed yet"} hint={filtered ? "Try another school year, semester or year level." : undefined} /> : (
             <Table head={["Member", "Obligation", "Amount", "Adjusted", "Paid", "Balance", "Status", ...(manage ? ["Actions"] : [])]}>
               {org.rows.map((f) => {
                 const l = ledger(f);
@@ -168,7 +178,7 @@ export default async function ManageFeesPage({ searchParams }: { searchParams: P
               })}
             </Table>
           )}
-          <Pagination page={page} total={org.total} basePath="/fees/manage" params={{ org: orgId }} />
+          <Pagination page={page} total={org.total} basePath="/fees/manage" params={{ org: orgId, ...filterParams(filter) }} />
           
         </section>
       )}
