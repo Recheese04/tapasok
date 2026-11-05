@@ -20,8 +20,11 @@ const yearName = (y: string) => (y === "none" ? "Unassigned" : `Year ${y}`);
 export function UserFilterBar({ tree, orgs, roles, years }: { tree: Tree; orgs: Opt[]; roles: [string, string][]; years: { byProgram: Record<string, string[]>; all: string[] } }) {
   const router = useRouter();
   const pathname = usePathname();
-  const sp = useSearchParams();
+  const urlParams = useSearchParams();
   const [pending, start] = useTransition();
+  // Latest choices before the reload finishes, so quick changes in a row never overwrite each other.
+  const [latest, setLatest] = useState<string | null>(null);
+  const sp = latest !== null && latest !== urlParams.toString() ? new URLSearchParams(latest) : urlParams;
   const [q, setQ] = useState(sp.get("q") ?? "");
   const lastPushed = useRef(sp.get("q") ?? "");
 
@@ -36,6 +39,7 @@ export function UserFilterBar({ tree, orgs, roles, years }: { tree: Tree; orgs: 
     for (const [k, val] of Object.entries(changes)) { if (val) p.set(k, val); else p.delete(k); }
     p.delete("page"); // a new filter starts from the first page
     const s = p.toString();
+    setLatest(s);
     start(() => router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false }));
   };
 

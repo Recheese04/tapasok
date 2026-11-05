@@ -217,20 +217,20 @@ export async function decideFund(actorId: string, id: string, approve: boolean, 
  * and why; it simply stops counting. Reversing income that the balance can no longer cover is refused.
  */
 export async function reverseFund(actorId: string, id: string, reason: string): Promise<Result<{ available: string }>> {
-  if (reason.trim().length < 3) return { ok: false, error: "Enter the reason for the reversal." };
+  if (reason.trim().length < 3) return { ok: false, error: "Enter the reason for the return." };
   const t = await db.fundTransaction.findUnique({ where: { id } });
   if (!t) return { ok: false, error: "Record not found." };
   return db.$transaction(async (tx) => {
     await lockOrg(tx, t.organizationId);
     if (t.type === "INCOME") {
       const { available } = await sums(tx, t.organizationId);
-      if (t.amount.gt(available)) return { ok: false as const, error: `Reversing this would make the balance negative (available ₱${money(available)}).` };
+      if (t.amount.gt(available)) return { ok: false as const, error: `Returning this would make the balance negative (available ₱${money(available)}).` };
     }
     const { count } = await tx.fundTransaction.updateMany({
       where: { id, status: "APPROVED" },
       data: { status: "REVERSED", reversedById: actorId, reversedAt: new Date(), reversalReason: reason.trim().slice(0, 500) },
     });
-    if (!count) return { ok: false as const, error: "Only approved records can be reversed." };
+    if (!count) return { ok: false as const, error: "Only approved records can be returned." };
     await finAudit(tx, { organizationId: t.organizationId, action: `${label(t.type)}.reverse`, entityType: "fund_transaction", entityId: id, amount: t.amount, actorId, before: { status: "APPROVED" }, after: { status: "REVERSED" }, reason });
     const { available } = await sums(tx, t.organizationId);
     return { ok: true as const, available: money(available) };

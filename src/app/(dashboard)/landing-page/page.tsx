@@ -1,8 +1,9 @@
+import { FilterBar } from "@/components/shared/filter-bar";
 import Link from "next/link";
 import { z } from "zod";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/shared/pagination";
-import { Badge, Card, inputClass, Page, PageHeader, secondaryButton, Table, Td } from "@/components/shared/ui";
+import { Badge, Card, Page, PageHeader, secondaryButton, Table, Td } from "@/components/shared/ui";
 import { requireSystemPermissionPage } from "@/lib/permissions";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { deleterNames, recentlyRestored } from "@/lib/database/soft-delete";
@@ -46,10 +47,7 @@ async function EventsTab({ sp }: { sp: Sp }) {
   const { total, rows } = await adminLandingEvents(q, page, PAGE_SIZE);
   return (
     <section className="flex flex-col gap-4" aria-label="Events">
-      <form className="flex flex-wrap gap-2" role="search">
-        <input name="q" defaultValue={q} placeholder="Search events or organizations" aria-label="Search events" className={`${inputClass} max-w-sm`} />
-        <button type="submit" className={secondaryButton}>Search</button>
-      </form>
+      <FilterBar label="Search events" search={{ placeholder: "Search events or organizations" }} selects={[]} />
       <p className="text-sm text-muted">Only published events of active organizations can be shown. Events on the landing page are listed first.</p>
       {rows.length === 0 ? <EmptyState title={q ? "No events match your search" : "No published events yet"} /> : (
         <Table head={["Event", "Organization", "Date", "Pictures", "Landing page", ""]}>

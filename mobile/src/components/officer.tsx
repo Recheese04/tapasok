@@ -142,7 +142,7 @@ function OrgHero({ overview, role }: { overview: OrgOverview; role: Role }) {
   const events = { label: "Upcoming events", value: String(o.events.upcoming) };
   const checkins = o.attendance ? { label: "Check-ins · 30d", value: String(o.attendance.checkins30Days) } : null;
   if (role === "SECRETARY") m.push(...[members, o.documents && { label: "Documents", value: String(o.documents.count) }, o.announcements && { label: "Posts published", value: String(o.announcements.published) }].filter(Boolean) as Metric[]);
-  else if (role === "OFFICER") m.push(...[events, o.attendance && { label: "Check-ins today", value: String(o.attendance.checkinsToday) }, o.obligations && { label: "Open obligations", value: String(o.obligations.open) }].filter(Boolean) as Metric[]);
+  else if (role === "OFFICER") m.push(...[events, o.attendance && { label: "Check-ins today", value: String(o.attendance.checkinsToday) }].filter(Boolean) as Metric[]);
   else if (role === "ADVISER") m.push(...[members, checkins, o.evaluations && { label: "Open evaluations", value: String(o.evaluations.open) }].filter(Boolean) as Metric[]);
   else m.push(...[members, events, checkins].filter(Boolean) as Metric[]);
   const lead = m[0];

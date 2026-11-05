@@ -1,3 +1,6 @@
+import type { Prisma } from "@/generated/prisma/client";
+import { YEAR_LEVEL_OPTIONS, parseYearLevel } from "@/components/shared/filter-options";
+import { FilterBar } from "@/components/shared/filter-bar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/shared/pagination";
 import { Badge, Card, inputClass, Page, PageHeader, secondaryButton, Table, Td } from "@/components/shared/ui";
@@ -19,7 +22,7 @@ const penalty = (c: { kind: string; amount: { toString(): string } | null; hours
   c.kind === "SERVICE_HOURS" ? `${c.hours?.toString() ?? "?"} service hr` : c.amount ? formatPeso(c.amount.toString()) : "—";
 const label = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
-export default async function ConsequencesPage({ searchParams }: { searchParams: Promise<{ org?: string; status?: string; page?: string }> }) {
+export default async function ConsequencesPage({ searchParams }: { searchParams: Promise<{ org?: string; status?: string; page?: string; q?: string; kind?: string; yl?: string }> }) {
   const user = await requireOrgPermissionAnywhere("consequences.view_org");
   const sp = await searchParams;
   const page = parsePage(sp.page);
@@ -29,12 +32,24 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
   // Without a choice, open an organization where the person can manage rules (not one where they only view).
   const orgId = viewIds.includes(sp.org ?? "") ? sp.org! : (viewIds.find((id) => canOrg(user, "consequences.rules", id)) ?? viewIds[0]);
   const status = (["PENDING", "COMPLETED", "WAIVED", "CANCELLED"] as const).find((s) => s === sp.status);
+  const kind = (["FINE", "SERVICE_HOURS"] as const).find((k) => k === sp.kind);
+  const yearLevel = parseYearLevel(sp.yl);
+  const q = (sp.q ?? "").trim().slice(0, 100);
   const manage = orgId ? canOrg(user, "consequences.manage", orgId) : false;
   const manageRules = orgId ? canOrg(user, "consequences.rules", orgId) : false;
   const waive = orgId ? canOrg(user, "consequences.waive", orgId) : false;
 
   const org = orgId ? await (async () => {
-    const where = { organizationId: orgId, ...(status ? { status } : {}) };
+    const where: Prisma.ConsequenceWhereInput = {
+      organizationId: orgId, ...(status ? { status } : {}), ...(kind ? { kind } : {}),
+      user: {
+        ...(yearLevel === "none" ? { OR: [{ studentProfile: null }, { studentProfile: { yearLevel: null } }] } : yearLevel ? { studentProfile: { yearLevel } } : {}),
+        ...(q ? { AND: [{ OR: [
+          { firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } },
+          { studentProfile: { studentNumber: { contains: q, mode: "insensitive" } } },
+        ] }] } : {}),
+      },
+    };
     const [total, rows, rules, members, events] = await Promise.all([
       db.consequence.count({ where }),
       db.consequence.findMany({
@@ -67,17 +82,21 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
       {org && orgId && (
         <section aria-labelledby="org-cons" className="flex flex-col gap-4">
           <h2 id="org-cons" className="font-medium">Organization records — {orgNames.get(orgId)}</h2>
-          <form className="flex flex-wrap gap-2">
-            {viewIds.length > 1 && (
+          {viewIds.length > 1 && (
+            <form className="flex gap-2">
               <select name="org" defaultValue={orgId} aria-label="Organization" className={`${inputClass} max-w-xs`}>
                 {viewIds.map((id) => <option key={id} value={id}>{orgNames.get(id)}</option>)}
               </select>
-            )}
-            <select name="status" defaultValue={status ?? ""} aria-label="Status" className={`${inputClass} max-w-xs`}>
-              <option value="">All statuses</option><option value="PENDING">Pending</option><option value="COMPLETED">Completed</option><option value="WAIVED">Waived</option>
-            </select>
-            <button type="submit" className={secondaryButton}>Filter</button>
-          </form>
+              <button type="submit" className={secondaryButton}>Switch</button>
+            </form>
+          )}
+          <FilterBar label="Filter consequences"
+            search={{ placeholder: "Member name or student number" }}
+            selects={[
+              { key: "status", label: "Status", all: "All statuses", options: [["PENDING", "Pending"], ["COMPLETED", "Completed"], ["WAIVED", "Waived"], ["CANCELLED", "Cancelled"]] },
+              { key: "kind", label: "Type", all: "All types", options: [["FINE", "Fine"], ["SERVICE_HOURS", "Service hours"]] },
+              { key: "yl", label: "Year level", all: "All year levels", options: YEAR_LEVEL_OPTIONS },
+            ]} />
 
           {org.rows.length === 0 ? <EmptyState title="No consequence records" /> : (
             <Table head={["Member", "Reason", "Penalty", "Status", "Date", "Actions"]}>
@@ -109,7 +128,7 @@ export default async function ConsequencesPage({ searchParams }: { searchParams:
               ))}
             </Table>
           )}
-          <Pagination page={page} total={org.total} basePath="/consequences/manage" params={{ org: orgId, status }} />
+          <Pagination page={page} total={org.total} basePath="/consequences/manage" params={{ org: orgId, status, kind, yl: yearLevel !== undefined ? sp.yl : undefined, q: q || undefined }} />
 
           <Card title="Rules">
             {org.rules.length === 0 ? <p className="text-sm text-muted">No rules defined.</p> : (

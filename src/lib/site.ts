@@ -5,6 +5,6 @@ export const SITE_URL = (process.env.APP_URL || "https://tapasok-beta.vercel.app
 /** Signed-in areas. Search engines are asked not to crawl them; they also carry a noindex tag. */
 export const PRIVATE_PATHS = [
   "/dashboard", "/users", "/students", "/academic", "/organizations", "/events", "/attendance", "/check-in", "/fees",
-  "/obligations", "/consequences", "/evaluations", "/announcements", "/documents", "/notifications", "/reports",
+  "/consequences", "/evaluations", "/announcements", "/documents", "/notifications", "/reports",
   "/settings", "/join", "/activate", "/api/",
 ];

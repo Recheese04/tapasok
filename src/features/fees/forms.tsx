@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ModalButton } from "@/components/shared/modal";
 import { Field, inputClass, Notice, primaryButton, secondaryButton } from "@/components/shared/ui";
+import { CREATABLE_KINDS, FEE_KIND } from "./labels";
+import { applyFeeToAllAction, type ApplyState } from "./actions";
 import { adjustLedgerAction, assessMemberAction, createFeeTypeAction, recordPaymentAction, updateFeeTypeAction, submitDigitalPaymentAction, type FeeState } from "./actions";
 
 export function FeeTypeForm({ organizationId, events }: { organizationId: string; events: { id: string; title: string }[] }) {
@@ -10,16 +13,16 @@ export function FeeTypeForm({ organizationId, events }: { organizationId: string
   const [kind, setKind] = useState("DUES");
   return (
     <form action={action} className="grid max-w-xl gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card sm:grid-cols-2">
-      <h3 className="font-medium sm:col-span-2">Create an assessment</h3>
+      <h3 className="font-medium sm:col-span-2">Create a fee</h3>
       {state.error && <div className="sm:col-span-2"><Notice kind="error">{state.error}</Notice></div>}
       {state.success && <div className="sm:col-span-2"><Notice kind="success">{state.success}</Notice></div>}
       <input type="hidden" name="organizationId" value={organizationId} />
       <Field id="fee-kind" label="Type">
         <select id="fee-kind" name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className={inputClass}>
-          <option value="DUES">Membership dues</option><option value="SEMESTER_FEE">Semester fee</option><option value="EVENT_CONTRIBUTION">Event contribution</option><option value="SPECIAL">Special assessment</option>
+          {CREATABLE_KINDS.map((k) => <option key={k} value={k}>{FEE_KIND[k]}</option>)}
         </select>
       </Field>
-      <Field id="fee-name" label="Name"><input id="fee-name" name="name" required className={inputClass} placeholder="e.g. Membership fee" /></Field>
+      <Field id="fee-name" label="Name"><input id="fee-name" name="name" required className={inputClass} placeholder="e.g. Membership fee 2026-2027, Org shirt, ID lace" /></Field>
       <Field id="fee-amount" label="Amount (PHP)"><input id="fee-amount" name="amount" required inputMode="decimal" placeholder="150.00" className={inputClass} /></Field>
       <Field id="fee-due" label="Due date (optional)"><input id="fee-due" name="dueDate" type="date" className={inputClass} /></Field>
       {kind === "EVENT_CONTRIBUTION" && (
@@ -36,8 +39,8 @@ export function AssessMemberForm({ feeTypeId }: { feeTypeId: string }) {
   return (
     <form action={action} className="flex flex-wrap items-center gap-1">
       <input type="hidden" name="feeTypeId" value={feeTypeId} />
-      <input name="studentNumber" aria-label="Student number to assess" placeholder="Student no." required className="rounded-lg border border-border bg-surface px-2 py-1 text-xs" />
-      <button type="submit" disabled={pending} className="text-xs text-primary hover:underline">{pending ? "…" : "Assess one member"}</button>
+      <input name="studentNumber" aria-label="Student number to apply this fee to" placeholder="Student no." required className="rounded-lg border border-border bg-surface px-2 py-1 text-xs" />
+      <button type="submit" disabled={pending} className="text-xs text-primary hover:underline">{pending ? "…" : "Apply to one member"}</button>
       {s.error && <span role="alert" className="text-xs text-danger">{s.error}</span>}
       {s.success && <span role="status" className="text-xs text-success">{s.success}</span>}
     </form>
@@ -134,6 +137,61 @@ function FeeTypeEditForm({ feeTypeId, name, amount, dueDate, description }: FeeE
       <Field id={`ft-desc-${feeTypeId}`} label="Notes (optional)"><input id={`ft-desc-${feeTypeId}`} name="description" defaultValue={description} className={inputClass} /></Field>
       <p className="text-sm text-muted sm:col-span-2">Members already assessed keep the amount they were assessed; the new amount applies from now on.</p>
       <button type="submit" disabled={pending} className={`${primaryButton} sm:col-span-2`}>{pending ? "Saving…" : "Save fee"}</button>
+    </form>
+  );
+}
+
+type Preview = { feeTypeId: string; name: string; amount: string; organization: string; schoolYear: string | null; semester: string | null; event: string | null; eligible: number; alreadyApplied: number; toAdd: number; totalToAdd: string };
+
+const peso = (v: string) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(v));
+
+/**
+ * "Apply to all members": a dialog that first shows exactly what will happen (organization, term, amount, how many members
+ * are eligible, already have it, and would be charged), then applies it on confirmation and reports the result.
+ * Safe to press again: members who already have the fee are skipped.
+ */
+export function ApplyToAllButton({ preview }: { preview: Preview }) {
+  return (
+    <ModalButton label="Apply to all members…" variant="secondary" title={`Apply "${preview.name}" to all members`} description="Check the details, then confirm. Members who already have this fee are skipped." size="md">
+      <ApplyToAllBody preview={preview} />
+    </ModalButton>
+  );
+}
+
+function ApplyToAllBody({ preview: p }: { preview: Preview }) {
+  const [state, action, pending] = useActionState<ApplyState, FormData>(applyFeeToAllAction, {});
+  const router = useRouter();
+  useEffect(() => { if (state.result) router.refresh(); }, [state, router]);
+  const term = [p.schoolYear, p.semester].filter(Boolean).join(" · ") || "No school year set";
+  const rows: [string, string][] = [
+    ["Organization", p.organization], ["School year · semester", term], ...(p.event ? [["Event", p.event] as [string, string]] : []),
+    ["Amount per member", peso(p.amount)], ["Eligible members", String(p.eligible)], ["Already have this fee", String(p.alreadyApplied)],
+    ["Will be charged now", `${p.toAdd} member${p.toAdd === 1 ? "" : "s"} · ${peso(p.totalToAdd)} in total`],
+  ];
+  if (state.result) {
+    const r = state.result;
+    return (
+      <div className="flex flex-col gap-3">
+        <Notice kind="success">Done. {r.assigned} member{r.assigned === 1 ? " was" : "s were"} charged; {r.skipped} skipped because they already had it.</Notice>
+        <dl className="grid grid-cols-3 gap-2 text-center text-sm">
+          <div className="rounded-xl bg-success/10 p-3"><dt className="text-xs text-muted">Added</dt><dd className="text-xl font-semibold">{r.assigned}</dd></div>
+          <div className="rounded-xl bg-sidebar p-3"><dt className="text-xs text-muted">Skipped</dt><dd className="text-xl font-semibold">{r.skipped}</dd></div>
+          <div className="rounded-xl bg-sidebar p-3"><dt className="text-xs text-muted">Failed</dt><dd className="text-xl font-semibold">0</dd></div>
+        </dl>
+      </div>
+    );
+  }
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="feeTypeId" value={p.feeTypeId} />
+      <dl className="divide-y divide-border rounded-xl border border-border text-sm">
+        {rows.map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-3 py-2"><dt className="text-muted">{k}</dt><dd className="text-right font-medium">{v}</dd></div>)}
+      </dl>
+      <p className="text-xs text-muted">Eligible: current members whose membership has not ended and whose account is not disabled. Advisers are not charged.{p.event ? " Event contributions go to the event's expected attendees." : ""}</p>
+      {state.error && <Notice kind="error">{state.error}</Notice>}
+      {p.toAdd === 0 ? <Notice kind="info">Everyone eligible already has this fee. Nothing to apply.</Notice> : (
+        <button type="submit" disabled={pending} className={`${primaryButton} self-start`}>{pending ? "Applying…" : `Confirm: charge ${p.toAdd} member${p.toAdd === 1 ? "" : "s"}`}</button>
+      )}
     </form>
   );
 }

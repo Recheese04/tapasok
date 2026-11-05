@@ -1,3 +1,4 @@
+import { FilterBar } from "@/components/shared/filter-bar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/shared/pagination";
 import { Badge, Page, PageHeader, Table, Td } from "@/components/shared/ui";
@@ -20,10 +21,22 @@ export const instant = false;
 const CATEGORY = { MINUTES: "Meeting minutes", ATTENDANCE_SHEET: "Attendance sheet", RESOLUTION: "Resolution", EVENT_DOCUMENT: "Event document", OTHER: "Other" } as const;
 const size = (n: number) => (n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
-export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+const CATEGORIES = ["MINUTES", "ATTENDANCE_SHEET", "RESOLUTION", "EVENT_DOCUMENT", "OTHER"] as const;
+
+export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ page?: string; q?: string; category?: string; org?: string }> }) {
   const user = await requireOrgPermissionAnywhere("documents.view");
-  const page = parsePage((await searchParams).page);
-  const where = { organizationId: { in: orgIdsWith(user, "documents.view") }, deletedAt: null };
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const viewIds = orgIdsWith(user, "documents.view");
+  const q = (sp.q ?? "").trim().slice(0, 100);
+  const category = CATEGORIES.find((c) => c === sp.category);
+  const orgFilter = viewIds.includes(sp.org ?? "") ? sp.org : undefined;
+  const where = {
+    organizationId: { in: orgFilter ? [orgFilter] : viewIds }, deletedAt: null,
+    ...(category ? { category } : {}),
+    ...(q ? { OR: [{ title: { contains: q, mode: "insensitive" as const } }, { description: { contains: q, mode: "insensitive" as const } }, { fileName: { contains: q, mode: "insensitive" as const } }] } : {}),
+  };
+  const viewOrgs = [...new Map(user.memberships.filter((m) => viewIds.includes(m.organizationId)).map((m) => [m.organizationId, m.organizationName])).entries()];
   const [total, rows] = await Promise.all([
     db.document.count({ where }),
     db.document.findMany({
@@ -48,8 +61,14 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
 
   return (
     <Page>
-      <PageHeader title="Documents" subtitle="Files shared with your organizations." actions={organizations.length > 0 && (<ModalButton label="+ Upload document" variant="primary" title="Upload document" description="PDF, image or office file up to 10 MB. Visible to members of the chosen organization." size="md"><UploadForm organizations={organizations} events={events} /></ModalButton>)} />
-      {rows.length === 0 ? <EmptyState title="No documents yet" /> : (
+      <PageHeader title="Documents" subtitle="Files shared with your organizations." actions={organizations.length > 0 && (<ModalButton label="+ Upload document" variant="primary" title="Upload document" description="PDF, image or office file up to 4 MB. Visible to members of the chosen organization." size="md"><UploadForm organizations={organizations} events={events} /></ModalButton>)} />
+      <FilterBar label="Filter documents"
+        search={{ placeholder: "Title, description or file name" }}
+        selects={[
+          { key: "category", label: "Category", all: "All categories", options: CATEGORIES.map((c) => [c, CATEGORY[c]]) },
+          ...(viewOrgs.length > 1 ? [{ key: "org", label: "Organization", all: "All organizations", options: viewOrgs.map(([id, name]) => [id, name] as [string, string]) }] : []),
+        ]} />
+      {rows.length === 0 ? <EmptyState title={q || category || orgFilter ? "No documents match these filters" : "No documents yet"} /> : (
         <Table head={["Document", "Organization", "File", "Term", "Added", ""]}>
           {rows.map((d) => (
             <tr key={d.id}>
@@ -74,7 +93,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
           ))}
         </Table>
       )}
-      <Pagination page={page} total={total} basePath="/documents" />
+      <Pagination page={page} total={total} basePath="/documents" params={{ q: q || undefined, category, org: orgFilter }} />
       <DeletedList noun="document" field="documentId" action={restoreDocumentAction}
         items={deleted.map((d) => ({ id: d.id, title: d.title, detail: `${d.organization.name} · ${d.fileName}`, deletedAt: d.deletedAt!, deletedBy: d.deletedById ? deleters.get(d.deletedById) : null }))} />
       

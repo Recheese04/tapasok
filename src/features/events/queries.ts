@@ -15,11 +15,18 @@ function visibleEvents(user: AuthUser) {
   };
 }
 
-export async function listEvents(user: AuthUser, opts: { when: "upcoming" | "past"; page: number }) {
+export async function listEvents(user: AuthUser, opts: { when: "upcoming" | "past"; page: number; q?: string; org?: string; status?: "DRAFT" | "PUBLISHED" | "CANCELLED" }) {
   const now = new Date();
+  const q = (opts.q ?? "").trim().slice(0, 100);
   const where = {
     ...visibleEvents(user),
     endsAt: opts.when === "upcoming" ? { gte: now } : { lt: now },
+    ...(opts.status ? { status: opts.status } : {}),
+    // Extra conditions go in AND so they never replace the visibility rules above (which use organizationId and OR).
+    AND: [
+      ...(opts.org ? [{ organizationId: opts.org }] : []),
+      ...(q ? [{ OR: [{ title: { contains: q, mode: "insensitive" as const } }, { venue: { contains: q, mode: "insensitive" as const } }] }] : []),
+    ],
   };
   const [total, rows] = await Promise.all([
     db.event.count({ where }),

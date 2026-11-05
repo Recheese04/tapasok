@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/database/client";
 import { canOrg, orgIdsWith } from "@/lib/permissions";
 import type { AuthUser } from "@/lib/auth/dal";
@@ -15,22 +16,51 @@ export function myAttendance(user: AuthUser) {
 }
 
 /** Attendance of the organizations where the user may oversee attendance. */
-export async function listOrgAttendance(user: AuthUser, opts: { eventId?: string; page: number }) {
+export type AttendanceListFilter = {
+  eventId?: string; page: number;
+  status?: "PRESENT" | "LATE" | "ABSENT" | "EXCUSED";
+  yearLevel?: number | "none";
+  q?: string;
+};
+
+/**
+ * Organization attendance records (attendance.view_org: officers, Secretary, President, Adviser), newest first. Filters run
+ * in the database, so they combine with each other and with paging. Each row carries its reason (remark) and who last
+ * changed it: the reason explains an excuse or a correction and is part of the record the Adviser oversees.
+ */
+export async function listOrgAttendance(user: AuthUser, opts: AttendanceListFilter) {
   const orgIds = orgIdsWith(user, "attendance.view_org");
-  const where = { event: { organizationId: { in: orgIds } }, ...(opts.eventId ? { eventId: opts.eventId } : {}) };
+  const q = (opts.q ?? "").trim().slice(0, 100);
+  const userWhere: Prisma.UserWhereInput = {
+    ...(opts.yearLevel === "none" ? { OR: [{ studentProfile: null }, { studentProfile: { yearLevel: null } }] } : opts.yearLevel ? { studentProfile: { yearLevel: opts.yearLevel } } : {}),
+    ...(q ? { AND: [{ OR: [
+      { firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } },
+      { studentProfile: { studentNumber: { contains: q, mode: "insensitive" } } },
+    ] }] } : {}),
+  };
+  const where: Prisma.AttendanceRecordWhereInput = {
+    event: { organizationId: { in: orgIds } },
+    ...(opts.eventId ? { eventId: opts.eventId } : {}),
+    ...(opts.status ? { status: opts.status } : {}),
+    ...(Object.keys(userWhere).length ? { user: userWhere } : {}),
+  };
   const [total, rows, events] = await Promise.all([
     db.attendanceRecord.count({ where }),
     db.attendanceRecord.findMany({
       where, orderBy: { scannedAt: "desc" }, skip: (opts.page - 1) * PAGE_SIZE, take: PAGE_SIZE,
       select: {
-        status: true, source: true, scannedAt: true, session: { select: { label: true } },
-        user: { select: { firstName: true, lastName: true, studentProfile: { select: { studentNumber: true } } } },
+        id: true, status: true, source: true, scannedAt: true, remark: true, modifiedAt: true, modifiedById: true,
+        session: { select: { id: true, label: true } },
+        user: { select: { firstName: true, lastName: true, studentProfile: { select: { studentNumber: true, yearLevel: true, course: true, program: { select: { code: true } } } } } },
         event: { select: { id: true, title: true } },
       },
     }),
     db.event.findMany({ where: { organizationId: { in: orgIds }, deletedAt: null }, orderBy: { startsAt: "desc" }, take: 100, select: { id: true, title: true } }),
   ]);
-  return { total, rows, events };
+  // Names of the people who last changed a record (modified_by_id is a plain column).
+  const editorIds = [...new Set(rows.map((r) => r.modifiedById).filter((x): x is string => !!x))];
+  const editors = editorIds.length ? new Map((await db.user.findMany({ where: { id: { in: editorIds } }, select: { id: true, firstName: true, lastName: true } })).map((u) => [u.id, `${u.firstName} ${u.lastName}`])) : new Map<string, string>();
+  return { total, rows: rows.map((r) => ({ ...r, modifiedBy: r.modifiedById ? (editors.get(r.modifiedById) ?? null) : null })), events };
 }
 
 /** Sessions the user may operate a scanner for: published events, not finalized, window not long past. */

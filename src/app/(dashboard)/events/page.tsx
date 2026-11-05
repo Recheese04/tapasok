@@ -1,3 +1,4 @@
+import { FilterBar } from "@/components/shared/filter-bar";
 import Link from "next/link";
 import { z } from "zod";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -17,7 +18,7 @@ import { EventCreateModal, EventEditModal, EventQrModal } from "@/features/event
 // renders; this opts the page out of the "instant navigation" check that would flag the session read.
 export const instant = false;
 
-type Sp = { when?: string; page?: string; edit?: string; qr?: string; new?: string };
+type Sp = { when?: string; page?: string; edit?: string; qr?: string; new?: string; q?: string; org?: string; status?: string };
 const uuid = z.uuid();
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<Sp> }) {
@@ -25,12 +26,20 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const when = sp.when === "past" ? "past" : "upcoming";
   const page = parsePage(sp.page);
-  const [{ total, rows }, deleted] = await Promise.all([listEvents(user, { when, page }), deletedEvents(user)]);
+  // Filters: search, organization (only ones the person can see) and status; they combine with Upcoming / Past.
+  const viewOrgs = [...new Map(user.memberships.filter((m) => orgIdsWith(user, "events.view").includes(m.organizationId)).map((m) => [m.organizationId, m.organizationName])).entries()];
+  const q = (sp.q ?? "").trim().slice(0, 100);
+  const orgFilter = viewOrgs.some(([id]) => id === sp.org) ? sp.org : undefined;
+  const statusFilter = (["DRAFT", "PUBLISHED", "CANCELLED"] as const).find((x) => x === sp.status);
+  const [{ total, rows }, deleted] = await Promise.all([listEvents(user, { when, page, q, org: orgFilter, status: statusFilter }), deletedEvents(user)]);
   const deleters = await deleterNames(deleted.map((d) => d.deletedById));
   const canCreate = orgIdsWith(user, "events.manage").length > 0;
 
   // The list state is kept in the URL; a dialog is just one more parameter, and closing it returns to this exact list.
   const listParams = new URLSearchParams({ when });
+  if (q) listParams.set("q", q);
+  if (orgFilter) listParams.set("org", orgFilter);
+  if (statusFilter) listParams.set("status", statusFilter);
   if (page > 1) listParams.set("page", String(page));
   const closeHref = `/events?${listParams.toString()}`;
   const withParam = (key: "edit" | "qr" | "new", value: string) => {
@@ -42,7 +51,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const qr = uuid.safeParse(sp.qr).success ? sp.qr : undefined;
 
   const tab = (w: string, label: string) => (
-    <Link href={`/events?when=${w}`} aria-current={when === w ? "page" : undefined}
+    <Link href={`/events?${new URLSearchParams(Object.entries({ when: w, q: q || undefined, org: orgFilter, status: statusFilter }).filter((e): e is [string, string] => !!e[1])).toString()}`} aria-current={when === w ? "page" : undefined}
       className={`rounded-lg px-3 py-1 text-sm ${when === w ? "bg-surface font-medium text-primary shadow-sm" : "text-muted hover:bg-surface"}`}>{label}</Link>
   );
 
@@ -50,8 +59,14 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     <Page>
       <PageHeader title="Events" subtitle="Events of your organizations." actions={canCreate && <Link href={withParam("new", "1")} scroll={false} className={primaryButton}>+ Create event</Link>} />
       <nav aria-label="Event filter" className="flex gap-2">{tab("upcoming", "Upcoming")}{tab("past", "Past")}</nav>
+      <FilterBar label="Filter events"
+        search={{ placeholder: "Event title or venue" }}
+        selects={[
+          ...(viewOrgs.length > 1 ? [{ key: "org", label: "Organization", all: "All organizations", options: viewOrgs.map(([id, name]) => [id, name] as [string, string]) }] : []),
+          { key: "status", label: "Status", all: "All statuses", options: [["PUBLISHED", "Published"], ["DRAFT", "Draft"], ["CANCELLED", "Cancelled"]] },
+        ]} />
       {rows.length === 0 ? (
-        <EmptyState title={when === "upcoming" ? "No upcoming events" : "No past events"} />
+        <EmptyState title={q || orgFilter || statusFilter ? "No events match these filters" : when === "upcoming" ? "No upcoming events" : "No past events"} />
       ) : (
         <Table head={["Event", "Organization", "When", "Venue", "Status", "Actions"]}>
           {rows.map((e) => (
@@ -72,7 +87,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           ))}
         </Table>
       )}
-      <Pagination page={page} total={total} basePath="/events" params={{ when }} />
+      <Pagination page={page} total={total} basePath="/events" params={{ when, q: q || undefined, org: orgFilter, status: statusFilter }} />
       <DeletedList noun="event" field="eventId" action={restoreEventAction}
         items={deleted.map((d) => ({ id: d.id, title: d.title, detail: `${d.organization.name} · ${formatDateTime(d.startsAt)}`, deletedAt: d.deletedAt!, deletedBy: d.deletedById ? deleters.get(d.deletedById) : null }))} />
 

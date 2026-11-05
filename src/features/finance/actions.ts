@@ -20,12 +20,12 @@ const RECEIPT_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
 async function readReceipt(fd: FormData): Promise<{ key: string; mime: string; name: string } | null | { error: string }> {
   const f = fd.get("receipt");
   if (!(f instanceof File) || f.size === 0) return null;
-  if (f.size > MAX_UPLOAD_BYTES) return { error: "The receipt is larger than 10 MB." };
+  if (f.size > MAX_UPLOAD_BYTES) return { error: "The receipt is larger than 4 MB." };
   const bytes = Buffer.from(await f.arrayBuffer());
   const check = checkUpload(f.name, bytes);
   if (!check.ok) return { error: check.error };
   if (!RECEIPT_TYPES.has(check.mime)) return { error: "Attach the receipt as a PDF, PNG or JPG." };
-  return { key: await saveBytes(bytes), mime: check.mime, name: f.name };
+  return { key: await saveBytes(bytes, check.mime), mime: check.mime, name: f.name };
 }
 
 function fields(fd: FormData, type: "EXPENSE" | "INCOME") {
@@ -101,5 +101,5 @@ export async function reverseFundAction(_prev: FundState, fd: FormData): Promise
   if (!t) return { error: "Record not found." };
   const actor = await assertOrgPermission("expenses.approve", t.organizationId);
   const res = await reverseFund(actor.id, id.data, str(fd, "reason"));
-  return res.ok ? { success: `Reversed. Available balance is now ₱${res.available}.` } : { error: res.error };
+  return res.ok ? { success: `Marked as returned. Available balance is now ₱${res.available}.` } : { error: res.error };
 }

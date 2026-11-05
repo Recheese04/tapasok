@@ -7,11 +7,12 @@ import { requireUser } from "@/lib/auth/dal";
 import { finAudit } from "@/features/finance/audit";
 import { assertOrgPermission } from "@/lib/permissions";
 import { checkUpload, saveBytes } from "@/features/documents/storage";
+import { CREATABLE_KINDS } from "./labels";
 import { assessMember, assignFeeToMembers, createFeeType, adjustLedger, parseAmount, recordPayment, submitDigitalPayment, verifyPayment, voidPayment } from "./service";
 
 export type FeeState = { error?: string; success?: string };
 const uuid = z.uuid();
-const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+const MAX_PROOF_BYTES = 4 * 1024 * 1024; // the host refuses larger request bodies
 
 // Each action authorizes against the organization that OWNS the record, never one supplied by the client.
 
@@ -24,7 +25,7 @@ export async function createFeeTypeAction(_prev: FeeState, fd: FormData): Promis
   if (!name.success) return { error: name.error.issues[0].message };
   const amount = parseAmount((fd.get("amount") ?? "").toString());
   if (!amount) return { error: "Enter an amount like 150 or 150.50." };
-  const kind = z.enum(["DUES", "SEMESTER_FEE", "EVENT_CONTRIBUTION", "SPECIAL"]).safeParse(fd.get("kind") || "DUES");
+  const kind = z.enum(CREATABLE_KINDS).safeParse(fd.get("kind") || "DUES");
   if (!kind.success) return { error: "Choose the type of fee." };
   const eventId = z.union([uuid, z.literal("")]).safeParse(fd.get("eventId") ?? "");
   if (kind.data === "EVENT_CONTRIBUTION" && !(eventId.success && eventId.data)) return { error: "Choose the event for an event contribution." };
@@ -51,6 +52,19 @@ export async function assignFeeAction(fd: FormData) {
   await assignFeeToMembers(actor.id, id.data);
 }
 
+export type ApplyState = { error?: string; result?: { assigned: number; skipped: number; eligible: number } };
+
+/** "Apply to all members" after the preview was confirmed: returns how many charges were added and how many skipped. */
+export async function applyFeeToAllAction(_prev: ApplyState, fd: FormData): Promise<ApplyState> {
+  const id = uuid.safeParse(fd.get("feeTypeId"));
+  if (!id.success) return { error: "Choose a fee." };
+  const fee = await feeTypeOrg(id.data);
+  if (!fee) return { error: "Fee not found." };
+  const actor = await assertOrgPermission("fees.manage", fee.organizationId);
+  const res = await assignFeeToMembers(actor.id, id.data);
+  return res.ok ? { result: { assigned: res.assigned, skipped: res.skipped, eligible: res.eligible } } : { error: res.error };
+}
+
 export async function assessMemberAction(_prev: FeeState, fd: FormData): Promise<FeeState> {
   const id = uuid.safeParse(fd.get("feeTypeId"));
   if (!id.success) return { error: "Choose a fee." };
@@ -60,7 +74,7 @@ export async function assessMemberAction(_prev: FeeState, fd: FormData): Promise
   const number = (fd.get("studentNumber") ?? "").toString().trim();
   if (!number) return { error: "Enter the student number." };
   const res = await assessMember(actor.id, id.data, number);
-  return res.ok ? { success: "Assessed." } : { error: res.error };
+  return res.ok ? { success: "Fee applied to the member." } : { error: res.error };
 }
 
 const paymentSchema = z.object({
@@ -107,7 +121,7 @@ export async function submitDigitalPaymentAction(_prev: FeeState, fd: FormData):
 
   const proof = fd.get("proof");
   if (!(proof instanceof File) || proof.size === 0) return { error: "Attach a screenshot or receipt as proof of payment." };
-  if (proof.size > MAX_PROOF_BYTES) return { error: "The proof file is larger than 5 MB." };
+  if (proof.size > MAX_PROOF_BYTES) return { error: "The proof file is larger than 4 MB." };
   const bytes = Buffer.from(await proof.arrayBuffer());
   const check = checkUpload(proof.name, bytes);
   if (!check.ok || !["application/pdf", "image/png", "image/jpeg"].includes(check.mime)) return { error: "Proof must be a PDF, PNG or JPG file." };
@@ -115,7 +129,7 @@ export async function submitDigitalPaymentAction(_prev: FeeState, fd: FormData):
   // Ownership is verified in the service (the assessment must belong to this student).
   const own = await db.studentFee.findUnique({ where: { id: parsed.data.studentFeeId }, select: { userId: true } });
   if (!own || own.userId !== user.id) return { error: "Assessment not found." };
-  const proofKey = await saveBytes(bytes);
+  const proofKey = await saveBytes(bytes, check.mime);
   const res = await submitDigitalPayment(user.id, parsed.data.studentFeeId, { amount, method: parsed.data.method, reference: parsed.data.reference, proofKey, proofMime: check.mime });
   return res.ok ? { success: `Submitted for verification. Reference ${res.receiptCode}` } : { error: res.error };
 }

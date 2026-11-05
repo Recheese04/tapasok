@@ -913,11 +913,12 @@ enum PenaltyType {
 }
 
 enum AssessmentKind {
-  DUES
+  DUES // shown as "Membership fee"
   SEMESTER_FEE
   EVENT_CONTRIBUTION
   SPECIAL
   FINE
+  OTHER // any other fee the organization names itself (shirts, IDs, ...)
 }
 
 enum AdjustmentType {
@@ -1198,4 +1199,17 @@ model SiteFeedback {
 
   @@index([status, deletedAt, updatedAt])
   @@map("site_feedback")
+}
+
+// Uploaded files (documents, payment proofs, expense receipts). Stored in the database so they survive redeployments: the
+// host's own disk is read-only and temporary. `key` is the random storage key that documents.storage_key,
+// payments.proof_key and fund_transactions.receipt_key already hold; older files kept on disk are still read from there.
+model StoredFile {
+  key       String   @id
+  content   Bytes
+  mime      String
+  byteSize  Int      @map("byte_size")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("stored_files")
 }

@@ -1,6 +1,7 @@
+import { FilterBar } from "@/components/shared/filter-bar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ModalButton } from "@/components/shared/modal";
-import { Badge, inputClass, Page, PageHeader, secondaryButton, StatCard, Table, Td } from "@/components/shared/ui";
+import { Badge, Page, PageHeader, StatCard, Table, Td } from "@/components/shared/ui";
 import { Icon } from "@/components/layout/icons";
 import type { FundCategory } from "@/generated/prisma/enums";
 import { canOrg, orgIdsWith, requireOrgPermissionAnywhere } from "@/lib/permissions";
@@ -14,7 +15,7 @@ import { orgFinance } from "@/lib/mobile/finance";
 export const instant = false;
 
 const STATUS: Record<string, ["green" | "amber" | "red" | "gray" | "purple", string]> = {
-  PENDING: ["amber", "Pending"], APPROVED: ["green", "Approved"], REJECTED: ["red", "Rejected"], CANCELLED: ["gray", "Cancelled"], REVERSED: ["gray", "Reversed"],
+  PENDING: ["amber", "Pending"], APPROVED: ["green", "Approved"], REJECTED: ["red", "Rejected"], CANCELLED: ["gray", "Cancelled"], REVERSED: ["gray", "Returned"],
 };
 const STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "REVERSED"] as const;
 
@@ -77,15 +78,13 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         </section>
       )}
 
-      <form className="grid gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card sm:grid-cols-3 lg:grid-cols-6" aria-label="Filter records">
-        <input type="hidden" name="org" value={orgId} />
-        <select name="type" defaultValue={filter.type ?? ""} aria-label="Type" className={inputClass}><option value="">All types</option><option value="EXPENSE">Expenses</option><option value="INCOME">Other funds</option></select>
-        <select name="status" defaultValue={filter.status ?? ""} aria-label="Status" className={inputClass}><option value="">All statuses</option>{STATUSES.map((s) => <option key={s} value={s}>{STATUS[s][1]}</option>)}</select>
-        <select name="category" defaultValue={filter.category ?? ""} aria-label="Category" className={inputClass}><option value="">All categories</option>{[...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES.filter((c) => c !== "OTHER")].map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}</select>
-        <input type="date" name="from" defaultValue={filter.from} aria-label="From" className={inputClass} />
-        <input type="date" name="to" defaultValue={filter.to} aria-label="To" className={inputClass} />
-        <button type="submit" className={secondaryButton}>Apply filters</button>
-      </form>
+      <FilterBar label="Filter records"
+        selects={[
+          { key: "type", label: "Type", all: "All types", options: [["EXPENSE", "Expenses"], ["INCOME", "Other funds"]] },
+          { key: "status", label: "Status", all: "All statuses", options: STATUSES.map((st) => [st, STATUS[st][1]]) },
+          { key: "category", label: "Category", all: "All categories", options: [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES.filter((c) => c !== "OTHER")].map((c) => [c, CATEGORY_LABEL[c]]) },
+        ]}
+        dates={[{ key: "from", label: "From" }, { key: "to", label: "To" }]} />
 
       {rows.length === 0 ? <EmptyState title="No records match" hint={canRecord ? "Record an expense or other funds with the buttons above." : "Nothing has been recorded yet."} /> : (
         <Table head={["Date", "Description", "Category", "Amount", "Status", "Recorded / decided", "Actions"]}>
@@ -98,7 +97,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
                 <Td><p className="font-medium">{r.title}</p><p className="text-xs text-muted">{r.purpose}</p>{r.notes ? <p className="text-xs text-muted">Note: {r.notes}</p> : null}</Td>
                 <Td><Badge tone={r.type === "EXPENSE" ? "red" : "green"}>{r.type === "EXPENSE" ? "Expense" : "Funds in"}</Badge><p className="mt-1 text-xs text-muted">{r.categoryLabel}</p></Td>
                 <Td className={`whitespace-nowrap font-semibold tabular-nums ${r.type === "EXPENSE" ? "text-danger" : "text-success"}`}>{r.type === "EXPENSE" ? "−" : "+"}{formatPeso(r.amount)}</Td>
-                <Td><Badge tone={tone}>{label}</Badge>{r.decisionReason ? <p className="mt-1 max-w-[16rem] text-xs text-muted">“{r.decisionReason}”</p> : null}{r.reversalReason ? <p className="mt-1 max-w-[16rem] text-xs text-muted">Reversed: “{r.reversalReason}”</p> : null}</Td>
+                <Td><Badge tone={tone}>{label}</Badge>{r.decisionReason ? <p className="mt-1 max-w-[16rem] text-xs text-muted">“{r.decisionReason}”</p> : null}{r.reversalReason ? <p className="mt-1 max-w-[16rem] text-xs text-muted">Returned: “{r.reversalReason}”</p> : null}</Td>
                 <Td className="text-xs text-muted"><p>By {r.recordedBy}</p>{r.decidedBy ? <p>{r.status === "CANCELLED" ? "Cancelled" : "Decided"} by {r.decidedBy}</p> : null}</Td>
                 <Td>
                   <div className="flex flex-col items-start gap-1.5 text-sm">
@@ -110,7 +109,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
                       </>
                     ) : null}
                     {canApprove && !mine && r.status === "PENDING" ? <span className="text-xs text-warning">Awaiting your decision (above)</span> : null}
-                    {canApprove && r.status === "APPROVED" ? <ModalButton label="Reverse" variant="link" title="Reverse this approved record?" size="md"><DecideFundForm id={r.id} kind="reverse" summary={`${r.title} · ${formatPeso(r.amount)} · approved`} /></ModalButton> : null}
+                    {canApprove && r.status === "APPROVED" ? <ModalButton label="Return" variant="link" title="Mark this approved record as returned?" size="md"><DecideFundForm id={r.id} kind="reverse" summary={`${r.title} · ${formatPeso(r.amount)} · approved`} /></ModalButton> : null}
                   </div>
                 </Td>
               </tr>

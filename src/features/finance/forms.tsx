@@ -30,7 +30,7 @@ export function RecordFundForm({ organizationId, type }: { organizationId: strin
       <Field id="f-amount" label="Amount (PHP)"><input id="f-amount" name="amount" required inputMode="decimal" pattern="\d{1,7}(\.\d{1,2})?" placeholder="850.00" className={inputClass} /></Field>
       <Field id="f-date" label={type === "EXPENSE" ? "Date spent" : "Date received"}><input id="f-date" name="occurredOn" type="date" required max={today()} defaultValue={today()} className={inputClass} /></Field>
       <Field id="f-cat" label="Category"><select id="f-cat" name="category" required className={inputClass}>{cats.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-      <Field id="f-receipt" label="Receipt (optional)" hint="PDF, PNG or JPG, up to 10 MB."><input id="f-receipt" name="receipt" type="file" accept="application/pdf,image/png,image/jpeg" className={inputClass} /></Field>
+      <Field id="f-receipt" label="Receipt (optional)" hint="PDF, PNG or JPG, up to 4 MB."><input id="f-receipt" name="receipt" type="file" accept="application/pdf,image/png,image/jpeg" className={inputClass} /></Field>
       <div className="sm:col-span-2"><Field id="f-purpose" label="Purpose or reason"><textarea id="f-purpose" name="purpose" required minLength={3} maxLength={500} rows={2} className={inputClass} /></Field></div>
       <div className="sm:col-span-2"><Field id="f-notes" label="Notes (optional)"><textarea id="f-notes" name="notes" maxLength={1000} rows={2} className={inputClass} /></Field></div>
       <p className="text-sm text-muted sm:col-span-2">It is saved as <strong>pending</strong> and only changes the balance once the President approves it.</p>
@@ -64,7 +64,7 @@ const COPY: Record<Kind, { button: string; reason: string | null; hint: string; 
   approve: { button: "Approve", reason: "Note (optional)", hint: "Approving counts this record in the balance. Expenses larger than the available balance are refused.", danger: false },
   reject: { button: "Reject", reason: "Reason (required)", hint: "Rejected records never count. The person who recorded it sees the reason.", danger: true },
   cancel: { button: "Cancel record", reason: "Reason (required)", hint: "Withdraws your pending record. It is kept in the history and never counts.", danger: true },
-  reverse: { button: "Reverse", reason: "Reason (required)", hint: "Use when an approved record was wrong or refunded. It stops counting; the record and the reason stay in the audit trail.", danger: true },
+  reverse: { button: "Mark as returned", reason: "Reason (required)", hint: "Use when the money of an approved record came back (a refund or a returned item) or the record was wrong. It stops counting in the balance; the record, who returned it, when and why stay in the audit trail.", danger: true },
 };
 
 /** Approve / reject / cancel / reverse with the reason the audit trail needs. */

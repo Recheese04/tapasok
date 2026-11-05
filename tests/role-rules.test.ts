@@ -366,7 +366,7 @@ describe("the Adviser is strictly read-only", () => {
 describe("an Adviser-only account has no personal member features", () => {
   it("sidebar: no check-in, own attendance, obligations, consequences, fees or My Organizations; others keep them", async () => {
     const w = await makeWorld();
-    const personal = ["/attendance/scan", "/attendance", "/obligations", "/consequences", "/fees", "/organizations"];
+    const personal = ["/attendance/scan", "/attendance", "/consequences", "/fees", "/organizations"];
     const links = async (id: string) => navItemsFor(await auth(id)).map((i) => i.href);
     const adviser = await links(w.a.ADVISER.id);
     for (const h of personal) expect(adviser, h).not.toContain(h);

@@ -1,8 +1,10 @@
+import { YEAR_LEVEL_OPTIONS } from "@/components/shared/filter-options";
+import { FilterBar } from "@/components/shared/filter-bar";
 import { z } from "zod";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination, parsePage } from "@/components/shared/pagination";
 import { ConfirmButton } from "@/components/shared/confirm-button";
-import { Badge, ButtonLink, inputClass, Page, PageHeader, secondaryButton, Table, Td } from "@/components/shared/ui";
+import { Badge, ButtonLink, Page, PageHeader, secondaryButton, Table, Td } from "@/components/shared/ui";
 import { db } from "@/lib/database/client";
 import { canOrgAnywhere, requireOrgPermissionAnywhere, orgIdsWith } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/format";
@@ -19,13 +21,20 @@ export const instant = false;
 const TONE = { PRESENT: "green", LATE: "amber", ABSENT: "red", EXCUSED: "gray" } as const;
 const SOURCE = { RFID: "RFID tap", QR_SELF: "QR self check-in", OFFICER_SCAN: "Officer scan", MANUAL: "Manual entry", SYSTEM: "Marked at close" } as const;
 
-export default async function AttendanceRecordsPage({ searchParams }: { searchParams: Promise<{ event?: string; page?: string }> }) {
+type Sp = { event?: string; page?: string; status?: string; yl?: string; q?: string };
+const STATUSES = ["PRESENT", "LATE", "ABSENT", "EXCUSED"] as const;
+
+export default async function AttendanceRecordsPage({ searchParams }: { searchParams: Promise<Sp> }) {
   const user = await requireOrgPermissionAnywhere("attendance.view_org");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const eventId = z.uuid().safeParse(sp.event).success ? sp.event : undefined;
+  const status = STATUSES.find((x) => x === sp.status);
+  const yearLevel = sp.yl === "none" ? ("none" as const) : /^[1-6]$/.test(sp.yl ?? "") ? Number(sp.yl) : undefined;
+  const q = (sp.q ?? "").trim().slice(0, 100);
+  const filtered = !!(eventId || status || yearLevel || q);
 
-  const org = await listOrgAttendance(user, { eventId, page });
+  const org = await listOrgAttendance(user, { eventId, page, status, yearLevel, q });
 
   const deviceOrgIds = orgIdsWith(user, "devices.manage");
   const devices = deviceOrgIds.length ? await db.scannerDevice.findMany({ where: { organizationId: { in: deviceOrgIds } }, orderBy: { createdAt: "desc" }, include: { organization: { select: { name: true } } } }) : [];
@@ -42,28 +51,34 @@ export default async function AttendanceRecordsPage({ searchParams }: { searchPa
       {org && (
         <section aria-labelledby="org-att" className="flex flex-col gap-3">
           <h2 id="org-att" className="font-medium">Organization attendance records</h2>
-          <form className="flex max-w-xl gap-2">
-            <label htmlFor="event" className="sr-only">Filter by event</label>
-            <select id="event" name="event" defaultValue={eventId ?? ""} className={inputClass}>
-              <option value="">All events</option>
-              {org.events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-            </select>
-            <button type="submit" className={secondaryButton}>Filter</button>
-          </form>
-          {org.rows.length === 0 ? <EmptyState title="No records" /> : (
-            <Table head={["Member", "Student no.", "Event · session", "Status", "Recorded"]}>
-              {org.rows.map((r, i) => (
-                <tr key={i}>
-                  <Td>{r.user.lastName}, {r.user.firstName}</Td>
-                  <Td>{r.user.studentProfile?.studentNumber ?? "—"}</Td>
-                  <Td>{r.event.title} · {r.session.label}</Td>
+          <FilterBar label="Filter attendance records"
+            search={{ placeholder: "Name or student number" }}
+            selects={[
+              { key: "event", label: "Event", all: "All events", options: org.events.map((e) => [e.id, e.title]) },
+              { key: "status", label: "Status", all: "All statuses", options: STATUSES.map((x) => [x, eventStatusLabel(x)]) },
+              { key: "yl", label: "Year level", all: "All year levels", options: YEAR_LEVEL_OPTIONS },
+            ]} />
+          <p className="text-sm text-muted" role="status">{org.total} record{org.total === 1 ? "" : "s"}{filtered ? (org.total === 1 ? " matches these filters" : " match these filters") : ""}.</p>
+          {org.rows.length === 0 ? <EmptyState title={filtered ? "No records match these filters" : "No records"} /> : (
+            <Table head={["Member", "Event · session", "Status", "Recorded", "Reason"]}>
+              {org.rows.map((r) => (
+                <tr key={r.id}>
+                  <Td>
+                    <span className="font-medium">{r.user.lastName}, {r.user.firstName}</span>
+                    <div className="text-xs text-muted">{[r.user.studentProfile?.studentNumber, r.user.studentProfile?.program?.code ?? r.user.studentProfile?.course, r.user.studentProfile?.yearLevel ? `Year ${r.user.studentProfile.yearLevel}` : null].filter(Boolean).join(" · ") || "No student profile"}</div>
+                  </Td>
+                  <Td><a href={`/events/${r.event.id}/sessions/${r.session.id}`} className="text-primary hover:underline">{r.event.title} · {r.session.label}</a></Td>
                   <Td><Badge tone={TONE[r.status]}>{eventStatusLabel(r.status)}</Badge></Td>
                   <Td>{formatDateTime(r.scannedAt)}<div className="text-xs text-muted">{SOURCE[r.source]}</div></Td>
+                  <Td className="max-w-xs">
+                    {r.remark ? <span className="whitespace-pre-line break-words">{r.remark}</span> : <span className="text-muted">—</span>}
+                    {r.modifiedAt && <div className="text-xs text-muted">Changed {formatDateTime(r.modifiedAt)}{r.modifiedBy ? ` by ${r.modifiedBy}` : ""}</div>}
+                  </Td>
                 </tr>
               ))}
             </Table>
           )}
-          <Pagination page={page} total={org.total} basePath="/attendance/records" params={{ event: eventId }} />
+          <Pagination page={page} total={org.total} basePath="/attendance/records" params={{ event: eventId, status, yl: sp.yl && yearLevel !== undefined ? sp.yl : undefined, q: q || undefined }} />
         </section>
       )}
 

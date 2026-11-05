@@ -31,7 +31,7 @@ forms) can grant any position other than Member.
 | Excuse an absence | - | Yes | Yes | - | - | - | - | - |
 | Register / revoke RFID terminals | - | Yes | Yes | - | - | - | - | - |
 | Register, replace or remove a student's RFID card | Yes | - | - | - | - | - | - | - |
-| View organization attendance / attendance report & CSV | - | Yes | Yes | - | - | Yes | Yes | - |
+| View organization attendance (with each record's reason) / attendance report & CSV | - | Yes | Yes | - | - | Yes | Yes | - |
 | Own attendance, obligations, consequences, fees | - | Yes | Yes | Yes | Yes | Yes | - (not an attendee or fee payer) | Yes |
 | Check in by scanning the session QR | - | Yes | Yes | Yes | Yes | Yes | - | Yes |
 | Post announcements (targeted); upload / remove documents | - | Yes | Yes | - | - | - | - | - |
@@ -45,8 +45,7 @@ forms) can grant any position other than Member.
 | Create/edit fees, assess, record cash, verify digital payments, adjust the ledger | - | Yes | - | Yes | - | - | - | - |
 | View the organization ledger / finance report & CSV | - | Yes | - | Yes | Yes | - | Yes | - |
 | Consequence report | - | Yes | - | - | - | - | Yes | - |
-| Obligations: assign, verify, cancel | - | Yes | Yes | - | - | Yes | - | - |
-| Obligations: view organization | - | Yes | Yes | - | - | Yes | Yes | - |
+| Obligations | removed from the interface on 2026-10-28; existing records are kept | | | | | | | |
 
 ## Decisions where the specification gave no explicit rule
 - **Positions are capability bundles.** Secretary: attendance, minutes/documents, announcements, join requests. Treasurer and President: all money.

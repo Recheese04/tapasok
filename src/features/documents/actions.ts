@@ -5,7 +5,7 @@ import { deletion, restoration } from "@/lib/database/soft-delete";
 import { db } from "@/lib/database/client";
 import { assertOrgPermission } from "@/lib/permissions";
 import { getActiveTerm } from "@/features/academic/service";
-import { checkUpload, saveBytes, MAX_UPLOAD_BYTES } from "./storage";
+import { checkUpload, saveBytes, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "./storage";
 
 export type DocumentState = { error?: string; success?: string };
 
@@ -24,18 +24,24 @@ export async function uploadDocumentAction(_prev: DocumentState, fd: FormData): 
   const semesterId = (await getActiveTerm())?.semester.id ?? null;
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file." };
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "The file is larger than 10 MB." };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: `The file is larger than ${MAX_UPLOAD_LABEL}. Compress it or split it into smaller files.` };
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const check = checkUpload(file.name, bytes);
   if (!check.ok) return { error: check.error };
 
-  const storageKey = await saveBytes(bytes);
+  let storageKey: string;
+  try {
+    storageKey = await saveBytes(bytes, check.mime);
+  } catch (e) {
+    console.error("document upload failed", e instanceof Error ? e.message : e);
+    return { error: "The file could not be saved. Try again in a moment." };
+  }
   const doc = await db.document.create({
     data: { organizationId: orgId.data, title: title.data, description, fileName: file.name.slice(0, 200), mimeType: check.mime, sizeBytes: bytes.length, storageKey, uploadedById: actor.id, category: category.data, semesterId, eventId: eventId.success && eventId.data ? eventId.data : null },
   });
   await db.auditLog.create({ data: { actorUserId: actor.id, action: "document.upload", targetType: "document", targetId: doc.id } });
-  return { success: "Document uploaded." };
+  return { success: `"${title.data}" was uploaded.` };
 }
 
 /** Soft delete: the record and file are kept for history but are no longer listed or downloadable. Restorable. */

@@ -84,3 +84,44 @@ export async function getResults(user: AuthUser, formId: string): Promise<{ resp
     }),
   };
 }
+
+export type ParticipantFilter = {
+  page: number; q?: string; yearLevel?: number | "none"; accountStatus?: "ACTIVE" | "INVITED" | "DISABLED"; submitted?: "yes" | "no";
+};
+
+/**
+ * Who was expected to answer (attended the event: present or late) and whether they submitted. For people who may see
+ * results (evaluations.results). It never shows anyone's answers: those stay anonymous in the results above.
+ * Every filter runs in the database and combines with the others and with paging.
+ */
+export async function getParticipants(user: AuthUser, formId: string, f: ParticipantFilter, pageSize = 25) {
+  const form = await db.evaluationForm.findUnique({ where: { id: formId }, select: { organizationId: true, eventId: true } });
+  if (!form || !canOrg(user, "evaluations.results", form.organizationId)) return null;
+  const attendees = (await db.attendanceRecord.findMany({ where: { eventId: form.eventId, status: { in: ["PRESENT", "LATE"] } }, select: { userId: true }, distinct: ["userId"] })).map((r) => r.userId);
+  const respondents = new Set((await db.evaluationResponse.findMany({ where: { formId }, select: { userId: true } })).map((r) => r.userId));
+  const q = (f.q ?? "").trim().slice(0, 100);
+  const ids = f.submitted === "yes" ? attendees.filter((id) => respondents.has(id)) : f.submitted === "no" ? attendees.filter((id) => !respondents.has(id)) : attendees;
+  const where = {
+    id: { in: ids },
+    ...(f.accountStatus ? { status: f.accountStatus } : {}),
+    ...(f.yearLevel === "none" ? { OR: [{ studentProfile: null }, { studentProfile: { yearLevel: null } }] } : f.yearLevel ? { studentProfile: { yearLevel: f.yearLevel } } : {}),
+    ...(q ? { AND: [{ OR: [
+      { firstName: { contains: q, mode: "insensitive" as const } }, { lastName: { contains: q, mode: "insensitive" as const } },
+      { studentProfile: { studentNumber: { contains: q, mode: "insensitive" as const } } },
+    ] }] } : {}),
+  };
+  const [total, rows] = await Promise.all([
+    db.user.count({ where }),
+    db.user.findMany({
+      where, orderBy: [{ lastName: "asc" }, { firstName: "asc" }], skip: (f.page - 1) * pageSize, take: pageSize,
+      select: { id: true, firstName: true, lastName: true, status: true, studentProfile: { select: { studentNumber: true, yearLevel: true, course: true, program: { select: { code: true } } } } },
+    }),
+  ]);
+  return {
+    total, attendees: attendees.length, submittedCount: attendees.filter((id) => respondents.has(id)).length,
+    rows: rows.map((u) => ({
+      id: u.id, name: `${u.lastName}, ${u.firstName}`, status: u.status, submitted: respondents.has(u.id),
+      studentNumber: u.studentProfile?.studentNumber ?? null, yearLevel: u.studentProfile?.yearLevel ?? null, program: u.studentProfile?.program?.code ?? u.studentProfile?.course ?? null,
+    })),
+  };
+}

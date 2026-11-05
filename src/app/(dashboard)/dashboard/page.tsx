@@ -1,12 +1,14 @@
+import { ROLE_LABEL } from "@/features/auth/roles";
+import { eventStatusLabel } from "@/features/events/constants";
 import Link from "next/link";
 import { EmptyState } from "@/components/shared/empty-state";
 import { BarChart, DonutChart } from "@/components/shared/charts";
 import { Icon } from "@/components/layout/icons";
-import { ButtonLink, Card, Page, PageHeader, StatCard } from "@/components/shared/ui";
+import { Badge, ButtonLink, Card, Page, PageHeader, StatCard } from "@/components/shared/ui";
 import { requireUser } from "@/lib/auth/dal";
 import { canOrgAnywhere, canSystem } from "@/lib/permissions";
-import { formatDateTime, formatPeso } from "@/lib/format";
-import { adminDashboard, memberDashboard } from "@/features/dashboard/queries";
+import { formatDate, formatDateTime, formatPeso } from "@/lib/format";
+import { adminDashboard, adviserOverview, memberDashboard } from "@/features/dashboard/queries";
 import { isAdviserOnly } from "@/config/navigation";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
@@ -67,9 +69,10 @@ export default async function DashboardPage() {
   const d = await memberDashboard(user);
   const a = d.attendanceByStatus;
   const attendanceTotal = a.PRESENT + a.LATE + a.ABSENT + a.EXCUSED;
-  // An Adviser-only account oversees organizations (read-only) and has no personal attendance, fees or obligations.
+  // An Adviser-only account oversees organizations (read-only) and has no personal attendance or fees.
   const adviser = isAdviserOnly(user);
-  const showMgmt = d.members !== null || d.pendingOrg !== null || d.orgOutstanding !== null || d.scansToday !== null || d.openObligationsOrg !== null;
+  const showMgmt = d.members !== null || d.pendingOrg !== null || d.orgOutstanding !== null || d.scansToday !== null;
+  const oversight = adviser ? await adviserOverview(user) : null;
 
   return (
     <Page>
@@ -92,7 +95,7 @@ export default async function DashboardPage() {
           {!adviser && <section aria-label="My summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Upcoming events" value={d.upcoming.length} href="/events" icon={<Icon name="calendar" />} />
             <StatCard label="Events attended" value={d.attended} href="/attendance" icon={<Icon name="check" />} tone="green" />
-            <StatCard label="Pending obligations" value={d.myOpenObligations.length} href="/obligations" icon={<Icon name="task" />} tone="amber" />
+            <StatCard label="Evaluations to answer" value={d.openEvals} href="/evaluations" icon={<Icon name="star" />} tone="amber" />
             <StatCard label="Balance due" value={formatPeso(d.outstanding.toString())} href="/fees" icon={<Icon name="wallet" />} tone={d.outstanding.isZero() ? "green" : "red"} />
           </section>}
 
@@ -101,7 +104,6 @@ export default async function DashboardPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Organization management</h2>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {d.members !== null && <StatCard label="Active members" value={d.members} href="/organizations/manage" icon={<Icon name="users" />} />}
-                {d.openObligationsOrg !== null && <StatCard label="Open obligations" value={d.openObligationsOrg} href="/obligations/manage" icon={<Icon name="task" />} tone="amber" />}
                 {d.pendingOrg !== null && <StatCard label="Pending consequences" value={d.pendingOrg} href="/consequences/manage" icon={<Icon name="alert" />} tone="red" />}
                 {d.orgOutstanding !== null && <StatCard label="Outstanding fees" value={formatPeso(d.orgOutstanding.toString())} hint="Across your organizations" href="/fees/manage" icon={<Icon name="wallet" />} tone="red" />}
                 {d.scansToday !== null && <StatCard label="Your check-ins today" value={d.scansToday} href="/events" icon={<Icon name="scan" />} tone="blue" />}
@@ -127,6 +129,37 @@ export default async function DashboardPage() {
                   </Card>
                 )}
               </div>
+            </section>
+          )}
+
+          {oversight && (
+            <section aria-label="Oversight" className="grid gap-4 lg:grid-cols-2">
+              <Card title="Recent attendance changes" action={<Link href="/attendance/records" className="text-sm font-medium text-primary hover:underline">All records</Link>}>
+                {oversight.reasons.length === 0 ? <EmptyState title="No excuses or corrections yet" /> : (
+                  <ul className="flex flex-col gap-3 text-sm">
+                    {oversight.reasons.map((r) => (
+                      <li key={r.id} className="flex flex-col gap-0.5">
+                        <span><span className="font-medium">{r.user.lastName}, {r.user.firstName}</span>{r.user.studentProfile?.studentNumber ? <span className="text-muted"> · {r.user.studentProfile.studentNumber}</span> : null} · <Badge tone={r.status === "EXCUSED" ? "gray" : r.status === "ABSENT" ? "red" : r.status === "LATE" ? "amber" : "green"}>{eventStatusLabel(r.status)}</Badge></span>
+                        <span className="text-muted">“{r.remark}”</span>
+                        <a href={`/events/${r.event.id}/sessions/${r.session.id}`} className="text-xs text-muted hover:text-primary hover:underline">{r.event.organization.name} · {r.event.title} · {r.session.label} · {formatDateTime(r.modifiedAt ?? r.scannedAt)}</a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+              <Card title="Newest members">
+                {oversight.newest.length === 0 ? <EmptyState title="No members yet" /> : (
+                  <ul className="flex flex-col gap-3 text-sm">
+                    {oversight.newest.map((m) => (
+                      <li key={m.id} className="flex flex-col gap-0.5">
+                        <span className="font-medium">{m.user.lastName}, {m.user.firstName}</span>
+                        <span className="text-xs text-muted">{[m.user.studentProfile?.studentNumber, m.user.studentProfile?.program?.code ?? m.user.studentProfile?.course, m.user.studentProfile?.yearLevel ? `Year ${m.user.studentProfile.yearLevel}` : null].filter(Boolean).join(" · ") || "No student profile"}</span>
+                        <Link href={`/organizations/${m.organization.id}`} className="text-xs text-muted hover:text-primary hover:underline">{m.organization.name} · {ROLE_LABEL[m.role]} · since {formatDate(m.startedAt)}</Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
             </section>
           )}
 
@@ -156,17 +189,12 @@ export default async function DashboardPage() {
                 </ul>
               )}
             </Card>
-            {!adviser && <Card title="My open obligations" action={<Link href="/obligations" className="text-sm font-medium text-primary hover:underline">View all</Link>}>
-              {d.myOpenObligations.length === 0 ? <EmptyState title="Nothing pending" /> : (
-                <ul className="flex flex-col gap-3 text-sm">
-                  {d.myOpenObligations.map((o) => (
-                    <li key={o.id}>
-                      <span className="font-medium">{o.title}</span>
-                      <div className="text-xs text-muted">{o.organization.name}{o.dueAt ? ` · due ${formatDateTime(o.dueAt)}` : ""}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            {!adviser && <Card title="Waiting for you">
+              <ul className="flex flex-col gap-3 text-sm">
+                <li className="flex items-center justify-between gap-3"><Link href="/evaluations" className="font-medium text-primary hover:underline">Event evaluations to answer</Link><span className="tabular-nums">{d.openEvals}</span></li>
+                <li className="flex items-center justify-between gap-3"><Link href="/consequences" className="font-medium text-primary hover:underline">Pending consequences</Link><span className="tabular-nums">{d.pendingMine}</span></li>
+                <li className="flex items-center justify-between gap-3"><Link href="/fees" className="font-medium text-primary hover:underline">Balance due</Link><span className="tabular-nums">{formatPeso(d.outstanding.toString())}</span></li>
+              </ul>
             </Card>}
           </section>
 

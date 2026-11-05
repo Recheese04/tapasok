@@ -40,17 +40,42 @@ export async function createFeeType(
 }
 
 /**
- * Assesses the fee. Dues/semester fees/special assessments go to every active member; event contributions go to the
- * event's expected attendees. Re-running only adds people who don't have it yet.
+ * Who a fee applies to: event contributions go to the event's expected attendees; every other fee goes to every current
+ * member (membership not ended) whose account is not disabled. Advisers oversee the organization (read-only); like
+ * attendance, they are not charged member fees.
  */
-export async function assignFeeToMembers(actorId: string, feeTypeId: string): Promise<Result<{ assigned: number }>> {
+async function eligibleUserIds(fee: { organizationId: string; kind: AssessmentKind; event: Parameters<typeof expectedAttendeeIds>[0] | null }) {
+  if (fee.kind === "EVENT_CONTRIBUTION" && fee.event) return expectedAttendeeIds(fee.event);
+  return (await db.organizationMember.findMany({ where: { organizationId: fee.organizationId, endedAt: null, role: { not: "ADVISER" }, user: { status: { not: "DISABLED" } } }, select: { userId: true }, distinct: ["userId"] })).map((m) => m.userId);
+}
+
+/** What "Apply to all members" would do, shown before confirming: who is eligible, who already has it, who would be added. */
+export async function applyPreview(feeTypeId: string) {
+  const fee = await db.feeType.findUnique({
+    where: { id: feeTypeId },
+    include: { event: true, organization: { select: { name: true } }, semester: { select: { name: true, schoolYear: { select: { label: true } } } } },
+  });
+  if (!fee) return null;
+  const eligible = await eligibleUserIds(fee);
+  const already = eligible.length ? await db.studentFee.count({ where: { feeTypeId, userId: { in: eligible } } }) : 0;
+  return {
+    feeTypeId, name: fee.name, kind: fee.kind, amount: fee.amount.toFixed(2), active: fee.active,
+    organization: fee.organization.name, schoolYear: fee.semester?.schoolYear.label ?? null, semester: fee.semester?.name ?? null,
+    event: fee.event?.title ?? null, eligible: eligible.length, alreadyApplied: already, toAdd: eligible.length - already,
+    totalToAdd: fee.amount.mul(eligible.length - already).toFixed(2),
+  };
+}
+export type ApplyPreview = NonNullable<Awaited<ReturnType<typeof applyPreview>>>;
+
+/**
+ * Applies the fee to everyone eligible. Safe to repeat: the database allows one charge per member per fee, so people who
+ * already have it are skipped, never charged twice. Returns how many were added and how many were skipped.
+ */
+export async function assignFeeToMembers(actorId: string, feeTypeId: string): Promise<Result<{ assigned: number; skipped: number; eligible: number }>> {
   const fee = await db.feeType.findUnique({ where: { id: feeTypeId }, include: { event: true } });
   if (!fee || !fee.active) return { ok: false, error: "This fee is not active." };
 
-  let userIds: string[];
-  if (fee.kind === "EVENT_CONTRIBUTION" && fee.event) userIds = await expectedAttendeeIds(fee.event);
-  // Advisers oversee the organization (read-only); like attendance, they are not assessed member fees.
-  else userIds = (await db.organizationMember.findMany({ where: { organizationId: fee.organizationId, endedAt: null, role: { not: "ADVISER" }, user: { status: { not: "DISABLED" } } }, select: { userId: true }, distinct: ["userId"] })).map((m) => m.userId);
+  const userIds = await eligibleUserIds(fee);
 
   const res = await db.studentFee.createMany({
     data: userIds.map((userId) => ({ feeTypeId, userId, organizationId: fee.organizationId, title: fee.name, kind: fee.kind, amountDue: fee.amount, semesterId: fee.semesterId, eventId: fee.eventId })),
@@ -58,7 +83,7 @@ export async function assignFeeToMembers(actorId: string, feeTypeId: string): Pr
   });
   await db.auditLog.create({ data: { actorUserId: actorId, action: "fee.assign", targetType: "fee_type", targetId: feeTypeId, metadata: { assigned: res.count } } });
   await finAudit(db, { organizationId: fee.organizationId, action: "fee.assign", entityType: "fee_type", entityId: feeTypeId, amount: fee.amount.mul(res.count), actorId, after: { fee: fee.name, membersAssessed: res.count, amountEach: fee.amount.toFixed(2) } });
-  return { ok: true, assigned: res.count };
+  return { ok: true, assigned: res.count, skipped: userIds.length - res.count, eligible: userIds.length };
 }
 
 /** Assess a single member (special assessments). The member must belong to the organization. */

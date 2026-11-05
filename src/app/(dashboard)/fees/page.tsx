@@ -6,6 +6,7 @@ import { db } from "@/lib/database/client";
 import { requireOrgPermissionAnywhere } from "@/lib/permissions";
 import { formatDate, formatPeso } from "@/lib/format";
 import { ledger } from "@/features/fees/ledger";
+import { FEE_KIND } from "@/features/fees/labels";
 import { PayOnlineForm } from "@/features/fees/forms";
 
 // Signed-in page: it validates the session cookie against the database and loads data scoped to the person on every
@@ -15,7 +16,7 @@ export const instant = false;
 
 const D = (n: Prisma.Decimal) => formatPeso(n.toString());
 const TONE = { PAID: "green", PARTIAL: "amber", UNPAID: "red", CREDIT: "gray" } as const;
-const KIND = { DUES: "Dues", SEMESTER_FEE: "Semester fee", EVENT_CONTRIBUTION: "Event contribution", SPECIAL: "Special", FINE: "Fine" } as const;
+const KIND = FEE_KIND;
 
 const feeInclude = {
   adjustments: { select: { amount: true, type: true, reason: true, createdAt: true }, orderBy: { createdAt: "asc" as const } },
@@ -36,11 +37,11 @@ export default async function MyFeesPage() {
     <Page>
       <PageHeader title="My Fees & Payments" subtitle="Your own fees, balances and payments. Organization-wide finance is under Organization Management." />
 
-      <Card title="My obligations">
+      <Card title="My fees">
         {!hoursOwed.isZero() && <p className="mb-3 text-sm">Community service owed: <strong>{hoursOwed.toString()} hour{hoursOwed.eq(1) ? "" : "s"}</strong> <Link href="/consequences" className="text-primary hover:underline">(details)</Link></p>}
         {mine.length === 0 ? <EmptyState title="You have no fees" /> : (
           <div className="flex flex-col gap-4">
-            <Table head={["Obligation", "Organization", "Due", "Amount", "Adjusted", "Paid", "Balance", "Status"]}>
+            <Table head={["Fee", "Organization", "Due", "Amount", "Adjusted", "Paid", "Balance", "Status"]}>
               {mine.map((f) => {
                 const l = ledger(f);
                 return (

@@ -43,6 +43,14 @@ Tapasok is a student-organization management system.
   and comments before they are public (`src/features/landing/`). Members rate from "Rate Tapasok".
 - **No semester clearance:** the planned clearance workflow (Phase 7 of the spec) was never built, and the owner removed
   its unused tables (`clearance_requests`, `clearance_signoffs`) on 2026-10-17. Don't rebuild it unless asked.
+- **Obligations removed (2026-10-28):** the Obligations pages, menu items and dashboard cards are gone (old links go to the
+  dashboard). The `obligations` table and its records are kept untouched; don't delete them without the owner's approval.
+- **Wording:** in fees, "assessment" is shown as "fee" / "apply" (the database keeps `AssessmentKind`, `assessments`), so it
+  is never confused with event **evaluations**. Fund records with status `REVERSED` are shown as **Returned**.
+- **Uploads are stored in the database** (`stored_files`): documents, payment proofs and expense receipts, max 4 MB (the
+  host refuses bigger requests; `serverActions.bodySizeLimit` is 5 MB). Older files on disk are still read if present.
+- **Sample data:** `npm run db:seed:finance` loads "Sample Finance Society" with 10 fictional members and fixed totals
+  (`prisma/sample-finance.ts`, `EXPECTED`). It refuses any database that is not on this computer.
 - **Pushing:** do not commit or push without the owner's explicit OK. Pushing `main` deploys to production immediately.
   No production data changes and no migrations without approval.
 
@@ -58,6 +66,7 @@ Tapasok is a student-organization management system.
 | Firmware (NodeMCU ESP8266 + RC522, SDA D2, RST D1, 3.3 V) | `firmware/tapasok_rfid/tapasok_rfid.ino`, guide `firmware/README.md` |
 | Mobile app | `mobile/` (role-based tools in `mobile/src/roles.ts`) |
 | SEO | `src/app/robots.ts`, `src/app/sitemap.ts`, landing metadata in `src/app/page.tsx` |
+| Finance report, masterlist, filters | `src/features/finance/overview.ts`, `src/features/fees/{masterlist,filters}.ts`, `/fees/report`, `/fees/masterlist` |
 | Landing events + feedback | `src/features/landing/` (images.ts, feedback.ts, public-sections.tsx), admin page `/landing-page`, member page `/feedback` |
 
 ## How to check work

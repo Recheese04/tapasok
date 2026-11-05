@@ -95,7 +95,7 @@ describe("navigation per role", () => {
   const items = async (id: string) => navItemsFor(await auth(id));
   const labels = async (id: string) => (await items(id)).map((i) => i.label);
   const inSection = async (id: string, section: string) => (await items(id)).filter((i) => i.section === section).map((i) => i.label);
-  const REMOVED = ["My QR Code", "Officer Scanner", "Clearance", "My Records", "Join Organization"];
+  const REMOVED = ["Manage Obligations", "My Obligations", "My QR Code", "Officer Scanner", "Clearance", "My Records", "Join Organization"];
 
   it("never lists the same destination twice, for any kind of user", async () => {
     const w = await makeWorld();
@@ -115,7 +115,7 @@ describe("navigation per role", () => {
     const w = await makeWorld();
     expect(await inSection(w.a.MEMBER.id, "manage")).toEqual([]);
     expect(await inSection(w.a.MEMBER.id, "account")).toEqual([
-      "Events", "Scan Attendance QR", "My Attendance", "My Obligations", "My Consequences", "My Fees & Payments", "My Organizations", "Rate Tapasok", "Profile & Settings",
+      "Events", "Scan Attendance QR", "My Attendance", "My Consequences", "My Fees & Payments", "My Organizations", "Rate Tapasok", "Profile & Settings",
     ]);
     expect(await inSection(w.a.MEMBER.id, "other")).toEqual(["Announcements", "Documents", "Event Evaluations"]);
     const l = await labels(w.a.MEMBER.id);
@@ -125,13 +125,13 @@ describe("navigation per role", () => {
   it("officers get Organization Management and keep their personal features", async () => {
     const w = await makeWorld();
     for (const r of ["OFFICER", "PRESIDENT", "SECRETARY"] as const) {
-      expect(await inSection(w.a[r].id, "manage"), r).toEqual(expect.arrayContaining(["Events & QR", "Attendance Records", "Manage Obligations", "Manage Consequences"]));
-      expect(await inSection(w.a[r].id, "account"), r).toEqual(expect.arrayContaining(["Scan Attendance QR", "My Attendance", "My Obligations", "My Consequences", "My Organizations"]));
+      expect(await inSection(w.a[r].id, "manage"), r).toEqual(expect.arrayContaining(["Events & QR", "Attendance Records", "Manage Consequences"]));
+      expect(await inSection(w.a[r].id, "account"), r).toEqual(expect.arrayContaining(["Scan Attendance QR", "My Attendance", "My Consequences", "My Organizations"]));
     }
     // Only managers see Events & QR; others do not.
     for (const r of ["TREASURER", "AUDITOR", "ADVISER", "MEMBER"] as const) expect(await labels(w.a[r].id), r).not.toContain("Events & QR");
     // The adviser may view obligations, consequences and attendance, but not manage events.
-    expect(await inSection(w.a.ADVISER.id, "manage")).toEqual(expect.arrayContaining(["Manage Obligations", "Attendance Records"]));
+    expect(await inSection(w.a.ADVISER.id, "manage")).toEqual(expect.arrayContaining(["Manage Consequences", "Attendance Records"]));
   });
 
   it("organization-wide Fees & Payments is for finance positions only; every attendee keeps My Fees & Payments", async () => {

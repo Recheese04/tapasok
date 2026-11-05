@@ -1,10 +1,10 @@
+import { FilterBar } from "@/components/shared/filter-bar";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge, ButtonLink, Card, inputClass, Page, PageHeader, secondaryButton } from "@/components/shared/ui";
+import { Badge, ButtonLink, Card, Page, PageHeader } from "@/components/shared/ui";
 import { canOrg, orgIdsWith, requireOrgPermissionAnywhere } from "@/lib/permissions";
 import { formatPeso } from "@/lib/format";
 import { FinanceNav, OrgPicker } from "@/features/finance/finance-nav";
-import { FinanceFilterBar } from "@/features/fees/finance-filter";
-import { filterLabel, filterParams, parseFinanceFilter, termOptions } from "@/features/fees/filters";
+import { filterLabel, filterParams, parseFinanceFilter, termOptions, termSelects } from "@/features/fees/filters";
 import { masterlist, type CellStatus, type MasterlistStatus } from "@/features/fees/masterlist";
 import { PrintButton } from "@/features/fees/print-button";
 
@@ -40,16 +40,12 @@ export default async function MasterlistPage({ searchParams }: { searchParams: P
       <div className="print:hidden"><FinanceNav current="/fees/masterlist" orgId={orgId} /></div>
       <div className="flex flex-col gap-3 print:hidden">
         <OrgPicker orgId={orgId} options={viewIds.map((id) => ({ id, name: names.get(id) ?? id }))} />
-        <FinanceFilterBar terms={terms} yearLevel />
-        <form className="flex flex-wrap items-end gap-2" role="search">
-          <input type="hidden" name="org" value={orgId} />
-          {Object.entries(filterParams(filter)).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
-          <input name="q" defaultValue={q} placeholder="Search name or student number" aria-label="Search members" className={`${inputClass} max-w-xs`} />
-          <select name="status" defaultValue={status} aria-label="Payment status" className={`${inputClass} max-w-48`}>
-            {STATUSES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-          </select>
-          <button type="submit" className={secondaryButton}>Apply</button>
-        </form>
+        <FilterBar label="Filter the masterlist"
+          search={{ placeholder: "Name or student number" }}
+          selects={[
+            ...termSelects(terms, filter, { yearLevel: true }),
+            { key: "status", label: "Payment status", all: "Everyone", options: STATUSES.filter(([k]) => k !== "all") },
+          ]} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -11,7 +11,7 @@ import { useOrg } from "../../src/org/OrgContext";
 import { colors, space } from "../../src/theme";
 import { useLoad } from "../../src/useLoad";
 
-const STATUS: Record<string, [string, Tone]> = { PENDING: ["Pending approval", "warning"], APPROVED: ["Approved", "success"], REJECTED: ["Rejected", "danger"], CANCELLED: ["Cancelled", "neutral"], REVERSED: ["Reversed", "neutral"] };
+const STATUS: Record<string, [string, Tone]> = { PENDING: ["Pending approval", "warning"], APPROVED: ["Approved", "success"], REJECTED: ["Rejected", "danger"], CANCELLED: ["Cancelled", "neutral"], REVERSED: ["Returned", "neutral"] };
 const EXPENSE_CATS = [["SUPPLIES", "Supplies"], ["EVENT_MATERIALS", "Event materials"], ["PRINTING", "Printing"], ["TRANSPORTATION", "Transport"], ["FOOD", "Food"], ["VENUE", "Venue"], ["SERVICES", "Services"], ["OTHER", "Other"]] as const;
 const INCOME_CATS = [["OPENING_BALANCE", "Opening balance"], ["DONATION", "Donation"], ["SPONSORSHIP", "Sponsorship"], ["OTHER", "Other"]] as const;
 type Filter = "all" | "PENDING" | "APPROVED";
@@ -95,10 +95,10 @@ export default function Expenses() {
               <Card key={r.id} style={{ gap: space.sm }}>
                 <RecordHead r={r} />
                 {r.decisionReason ? <Txt variant="small" color={colors.textSecondary}>“{r.decisionReason}”</Txt> : null}
-                {r.reversalReason ? <Txt variant="small" color={colors.textSecondary}>Reversed: “{r.reversalReason}”</Txt> : null}
+                {r.reversalReason ? <Txt variant="small" color={colors.textSecondary}>Returned: “{r.reversalReason}”</Txt> : null}
                 <Txt variant="small" color={colors.textMuted}>By {r.recordedBy}{r.decidedBy ? ` · ${r.status === "CANCELLED" ? "cancelled" : "decided"} by ${r.decidedBy}` : ""}{r.hasReceipt ? " · receipt on the website" : " · no receipt"}</Txt>
                 {data.canRecord && mine && r.status === "PENDING" ? <Button label="Cancel record" variant="ghost" size="sm" disabled={busy} onPress={() => { setReason(""); setAsk({ record: r, action: "cancel" }); }} /> : null}
-                {data.canApprove && r.status === "APPROVED" ? <Button label="Reverse" variant="ghost" size="sm" disabled={busy} onPress={() => { setReason(""); setAsk({ record: r, action: "reverse" }); }} /> : null}
+                {data.canApprove && r.status === "APPROVED" ? <Button label="Return" variant="ghost" size="sm" disabled={busy} onPress={() => { setReason(""); setAsk({ record: r, action: "reverse" }); }} /> : null}
               </Card>
             );
           })}
@@ -106,10 +106,10 @@ export default function Expenses() {
         </Body>
       ) : null}
 
-      <Sheet visible={!!ask} onClose={() => setAsk(null)} title={ask?.action === "reject" ? "Reject record" : ask?.action === "cancel" ? "Cancel record" : "Reverse record"} subtitle={ask ? `${ask.record.title} · ${peso(ask.record.amount)}` : undefined}>
+      <Sheet visible={!!ask} onClose={() => setAsk(null)} title={ask?.action === "reject" ? "Reject record" : ask?.action === "cancel" ? "Cancel record" : "Mark as returned"} subtitle={ask ? `${ask.record.title} · ${peso(ask.record.amount)}` : undefined}>
         <Field label="Reason" hint={ask?.action === "reverse" ? "It stops counting in the balance; the record and this reason stay in the audit trail." : "Kept with the record in the audit trail."} value={reason} onChangeText={setReason} multiline maxLength={500} />
-        <Button label={ask?.action === "reject" ? "Reject" : ask?.action === "cancel" ? "Cancel record" : "Reverse"} variant="danger" loading={busy} disabled={reason.trim().length < 3}
-          onPress={async () => { if (ask && (await run(() => api.decideExpense(orgId, ask.record.id, ask.action, reason.trim()), ask.action === "reject" ? "Rejected" : ask.action === "cancel" ? "Cancelled" : "Reversed"))) setAsk(null); }} />
+        <Button label={ask?.action === "reject" ? "Reject" : ask?.action === "cancel" ? "Cancel record" : "Mark as returned"} variant="danger" loading={busy} disabled={reason.trim().length < 3}
+          onPress={async () => { if (ask && (await run(() => api.decideExpense(orgId, ask.record.id, ask.action, reason.trim()), ask.action === "reject" ? "Rejected" : ask.action === "cancel" ? "Cancelled" : "Marked as returned"))) setAsk(null); }} />
       </Sheet>
 
       {recording ? <RecordSheet onClose={() => setRecording(false)} onSaved={async () => { setRecording(false); toast.show("Recorded. It counts once the President approves it."); await Promise.all([refresh(), reloadOverview()]); }} orgId={orgId} /> : null}

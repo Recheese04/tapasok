@@ -44,6 +44,9 @@ const fileHeaders = [
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // Uploads (documents, payment proofs, expense receipts) go through Server Actions; the default 1 MB limit refused most
+  // real files. The host itself refuses bodies over 4.5 MB, and the app caps files at 4 MB.
+  experimental: { serverActions: { bodySizeLimit: "5mb" } },
   partialPrefetching: true,
   poweredByHeader: false,
   async headers() {

@@ -1,5 +1,6 @@
+import { FilterBar } from "@/components/shared/filter-bar";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge, inputClass, Page, PageHeader, secondaryButton, Table, Td } from "@/components/shared/ui";
+import { Badge, Page, PageHeader, Table, Td } from "@/components/shared/ui";
 import { orgIdsWith, requireOrgPermissionAnywhere } from "@/lib/permissions";
 import { formatDateTime, formatPeso } from "@/lib/format";
 import { isYmd, listAudit } from "@/features/finance/funds";
@@ -47,13 +48,9 @@ export default async function FinancialAuditPage({ searchParams }: { searchParam
       <PageHeader title="Financial audit trail" subtitle={`${names.get(orgId)} · every financial action, who did it and when. Entries cannot be edited or deleted.`} />
       <FinanceNav current="/fees/audit" orgId={orgId} />
       <OrgPicker orgId={orgId} options={viewIds.map((id) => ({ id, name: names.get(id) ?? id }))} />
-      <form className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card" aria-label="Filter audit trail">
-        <input type="hidden" name="org" value={orgId} />
-        <select name="type" defaultValue={type ?? ""} aria-label="Record type" className={`${inputClass} max-w-xs`}>{TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-        <input type="date" name="from" defaultValue={from} aria-label="From" className={`${inputClass} max-w-[11rem]`} />
-        <input type="date" name="to" defaultValue={to} aria-label="To" className={`${inputClass} max-w-[11rem]`} />
-        <button type="submit" className={secondaryButton}>Apply</button>
-      </form>
+      <FilterBar label="Filter audit trail"
+        selects={[{ key: "type", label: "Record type", all: TYPES[0][1], options: TYPES.filter(([v]) => v) }]}
+        dates={[{ key: "from", label: "From" }, { key: "to", label: "To" }]} />
       {rows.length === 0 ? <EmptyState title="No financial activity yet" hint="Fees, payments, expenses and approvals will appear here as they happen." /> : (
         <Table head={["When", "Action", "Amount", "By", "Details", "Reason"]}>
           {rows.map((r) => (

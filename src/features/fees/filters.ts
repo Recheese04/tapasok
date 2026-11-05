@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/database/client";
+import type { FilterSelect } from "@/components/shared/filter-bar";
+import { YEAR_LEVEL_OPTIONS } from "@/components/shared/filter-options";
 
 // Filters shared by the finance pages (Fees & collections, Masterlist):
 //   * school year (sy) and semester (sem): an assessment belongs to the term it was assessed in (student_fees.semester_id);
@@ -58,3 +60,16 @@ export function filterLabel(f: FinanceFilter, terms: TermOptions) {
 export const filterParams = (f: FinanceFilter): Record<string, string | undefined> => ({
   sy: f.sem ? undefined : (f.sy ?? undefined), sem: f.sem ?? undefined, yl: f.yl === null ? undefined : String(f.yl),
 });
+
+/**
+ * School year, semester (and optionally year level) menus for the shared filter bar. The semester menu lists the chosen
+ * school year's semesters; choosing another school year clears the semester.
+ */
+export function termSelects(terms: TermOptions, f: FinanceFilter, opts: { yearLevel?: boolean } = {}): FilterSelect[] {
+  const year = f.sem ? terms.find((y) => y.semesters.some((s) => s.id === f.sem)) : terms.find((y) => y.id === f.sy);
+  return [
+    { key: "sy", label: "School year", all: "All school years", resets: ["sem"], options: terms.map((y) => [y.id, `${y.label}${y.active ? " (current)" : ""}`]) },
+    { key: "sem", label: "Semester", all: "Whole school year", disabledText: "Choose a school year first", options: year ? year.semesters.map((s) => [s.id, `${s.name}${s.active ? " (current)" : ""}`]) : [] },
+    ...(opts.yearLevel ? [{ key: "yl", label: "Year level", all: "All year levels", options: YEAR_LEVEL_OPTIONS }] : []),
+  ];
+}

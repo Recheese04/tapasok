@@ -1,11 +1,14 @@
+import { ACCOUNT_STATUS_OPTIONS, YEAR_LEVEL_OPTIONS } from "@/components/shared/filter-options";
+import { FilterBar } from "@/components/shared/filter-bar";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { Badge, Card, Notice, Page, PageHeader, secondaryButton, primaryButton, dangerButton } from "@/components/shared/ui";
+import { Badge, Card, Notice, Page, PageHeader, secondaryButton, primaryButton, dangerButton, Table, Td } from "@/components/shared/ui";
+import { Pagination, parsePage } from "@/components/shared/pagination";
 import { ConfirmButton } from "@/components/shared/confirm-button";
 import { ModalButton } from "@/components/shared/modal";
 import { requireUser } from "@/lib/auth/dal";
-import { getEvaluationForViewer, getResults } from "@/features/evaluations/queries";
+import { getEvaluationForViewer, getParticipants, getResults } from "@/features/evaluations/queries";
 import { deleteEvaluationAction, deleteQuestionAction, setEvaluationStatusAction } from "@/features/evaluations/actions";
 import { AddQuestionForm, AnswerForm, EditEvaluationButton, EditQuestionButton } from "@/features/evaluations/forms";
 
@@ -14,14 +17,28 @@ import { AddQuestionForm, AnswerForm, EditEvaluationButton, EditQuestionButton }
 // renders; this opts the page out of the "instant navigation" check that would flag the session read.
 export const instant = false;
 
-export default async function EvaluationPage({ params }: { params: Promise<{ id: string }> }) {
+type Sp = { page?: string; q?: string; yl?: string; account?: string; submitted?: string };
+const ACCOUNT = { ACTIVE: ["Active", "green"], INVITED: ["Not set up yet", "amber"], DISABLED: ["Disabled", "gray"] } as const;
+
+export default async function EvaluationPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Sp> }) {
   const user = await requireUser();
   const { id } = await params;
+  const sp = await searchParams;
   if (!z.uuid().safeParse(id).success) notFound();
   const data = await getEvaluationForViewer(user, id);
   if (!data) notFound();
   const { form, manage, canViewResults, canAnswer, attended, submitted } = data;
   const results = canViewResults ? await getResults(user, id) : null;
+  // Participation list filters (year level, account status, submitted or not, name / student number).
+  const pf = {
+    page: parsePage(sp.page),
+    q: (sp.q ?? "").trim().slice(0, 100) || undefined,
+    yearLevel: sp.yl === "none" ? ("none" as const) : /^[1-6]$/.test(sp.yl ?? "") ? Number(sp.yl) : undefined,
+    accountStatus: (["ACTIVE", "INVITED", "DISABLED"] as const).find((x) => x === sp.account),
+    submitted: (["yes", "no"] as const).find((x) => x === sp.submitted),
+  };
+  const participants = canViewResults && form.status !== "DRAFT" ? await getParticipants(user, id, pf) : null;
+  const pfActive = !!(pf.q || pf.yearLevel || pf.accountStatus || pf.submitted);
   const responseCount = results?.responses ?? 0;
 
   const statusForm = (status: "DRAFT" | "OPEN" | "CLOSED", label: string, confirm: string, style: "primary" | "secondary" = "secondary") => (
@@ -108,6 +125,32 @@ export default async function EvaluationPage({ params }: { params: Promise<{ id:
             ))}
           </div>
           <p className="mt-4 text-xs text-muted">Responses are anonymous: results show aggregates only.</p>
+        </Card>
+      )}
+      {participants && (
+        <Card title={`Participation (${participants.submittedCount} of ${participants.attendees} attendees submitted)`}>
+          <p className="mb-3 text-sm text-muted">Everyone who attended the event (present or late) is expected to answer. This list shows only who has submitted, never what they answered.</p>
+          <div className="mb-3"><FilterBar label="Filter participants"
+            search={{ placeholder: "Name or student number" }}
+            selects={[
+              { key: "yl", label: "Year level", all: "All year levels", options: YEAR_LEVEL_OPTIONS },
+              { key: "account", label: "Student status", all: "All accounts", options: ACCOUNT_STATUS_OPTIONS },
+              { key: "submitted", label: "Evaluation", all: "Submitted or not", options: [["yes", "Submitted"], ["no", "Not submitted"]] },
+            ]} /></div>
+          {participants.rows.length === 0 ? <p className="text-sm text-muted">{pfActive ? "Nobody matches these filters." : "Nobody attended this event yet."}</p> : (
+            <Table head={["Student", "Program", "Year", "Student status", "Evaluation"]}>
+              {participants.rows.map((r) => (
+                <tr key={r.id}>
+                  <Td><span className="font-medium">{r.name}</span><div className="text-xs text-muted">{r.studentNumber ?? "No student number"}</div></Td>
+                  <Td>{r.program ?? "—"}</Td>
+                  <Td className="tabular-nums">{r.yearLevel ?? "—"}</Td>
+                  <Td><Badge tone={ACCOUNT[r.status][1]}>{ACCOUNT[r.status][0]}</Badge></Td>
+                  <Td>{r.submitted ? <Badge tone="green">Submitted</Badge> : <Badge tone="amber">Not yet</Badge>}</Td>
+                </tr>
+              ))}
+            </Table>
+          )}
+          <div className="mt-3"><Pagination page={pf.page} total={participants.total} basePath={`/evaluations/${form.id}`} params={{ q: pf.q, yl: pf.yearLevel !== undefined ? sp.yl : undefined, account: pf.accountStatus, submitted: pf.submitted }} /></div>
         </Card>
       )}
     </Page>

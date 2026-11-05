@@ -25,14 +25,7 @@ export async function memberDashboard(user: AuthUser) {
   const viewIds = orgIdsWith(user, "events.view");
   const manageEvents = orgIdsWith(user, "events.manage");
 
-  const [attendanceGroups, myOpenObligations] = await Promise.all([
-    db.attendanceRecord.groupBy({ by: ["status"], where: { userId: user.id }, _count: { _all: true } }),
-    db.obligation.findMany({
-      where: { userId: user.id, status: { in: ["PENDING", "IN_PROGRESS"] } },
-      orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }], take: 5,
-      select: { id: true, title: true, dueAt: true, organization: { select: { name: true } } },
-    }),
-  ]);
+  const attendanceGroups = await db.attendanceRecord.groupBy({ by: ["status"], where: { userId: user.id }, _count: { _all: true } });
   const attendanceByStatus = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<"PRESENT" | "LATE" | "ABSENT" | "EXCUSED", number>;
   for (const g of attendanceGroups) attendanceByStatus[g.status] = g._count._all;
 
@@ -62,16 +55,14 @@ export async function memberDashboard(user: AuthUser) {
   const startOfDay = new Date(now); startOfDay.setUTCHours(-8, 0, 0, 0); // Manila midnight
   if (startOfDay > now) startOfDay.setUTCDate(startOfDay.getUTCDate() - 1);
 
-  const obligationIds = orgIdsWith(user, "obligations.view_org");
   const attendanceViewIds = orgIdsWith(user, "attendance.view_org");
   const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5, 1); sixMonthsAgo.setHours(0, 0, 0, 0);
 
-  const [members, pendingOrg, feeRows, scansToday, openObligationsOrg, checkinRows] = await Promise.all([
+  const [members, pendingOrg, feeRows, scansToday, checkinRows] = await Promise.all([
     rosterIds.length ? db.organizationMember.count({ where: { organizationId: { in: rosterIds }, endedAt: null } }) : null,
     consIds.length ? db.consequence.count({ where: { organizationId: { in: consIds }, status: "PENDING" } }) : null,
     feeIds.length ? db.studentFee.findMany({ where: { feeType: { organizationId: { in: feeIds } } }, select: { amountDue: true, payments: { where: { voidedAt: null, status: "CONFIRMED" }, select: { amount: true } } } }) : null,
     scanIds.length ? db.attendanceRecord.count({ where: { scannedById: user.id, scannedAt: { gte: startOfDay } } }) : null,
-    obligationIds.length ? db.obligation.count({ where: { organizationId: { in: obligationIds }, status: { in: ["PENDING", "IN_PROGRESS"] } } }) : null,
     attendanceViewIds.length ? db.attendanceRecord.findMany({ where: { event: { organizationId: { in: attendanceViewIds } }, scannedAt: { gte: sixMonthsAgo } }, select: { scannedAt: true }, take: 50_000 }) : null,
   ]);
   // Check-ins per month for the last six months (Manila time).
@@ -84,5 +75,34 @@ export async function memberDashboard(user: AuthUser) {
   const orgCollected = feeRows ? feeRows.reduce((s, f) => f.payments.reduce((t, p) => t.add(p.amount), s), new Prisma.Decimal(0)) : null;
   const orgOutstanding = feeRows ? feeRows.reduce((s, f) => f.payments.reduce((t, p) => t.sub(p.amount), s.add(f.amountDue)), new Prisma.Decimal(0)) : null;
 
-  return { upcoming, attended, openEvals, pendingMine, outstanding, announcements, members, pendingOrg, orgOutstanding, scansToday, attendanceByStatus, myOpenObligations, openObligationsOrg, checkinsByMonth, orgCollected };
+  return { upcoming, attended, openEvals, pendingMine, outstanding, announcements, members, pendingOrg, orgOutstanding, scansToday, attendanceByStatus, checkinsByMonth, orgCollected };
+}
+
+/**
+ * Read-only oversight lists for the Adviser's dashboard, limited to organizations where the viewer may see them:
+ * attendance records that carry a reason (excuses and corrections), and the newest members with their academic details.
+ */
+export async function adviserOverview(user: AuthUser) {
+  const attendanceIds = orgIdsWith(user, "attendance.view_org");
+  const rosterIds = orgIdsWith(user, "members.basic");
+  const [reasons, newest] = await Promise.all([
+    attendanceIds.length ? db.attendanceRecord.findMany({
+      where: { event: { organizationId: { in: attendanceIds } }, remark: { not: null } },
+      orderBy: [{ modifiedAt: { sort: "desc", nulls: "last" } }, { scannedAt: "desc" }], take: 6,
+      select: {
+        id: true, status: true, remark: true, scannedAt: true, modifiedAt: true,
+        session: { select: { id: true, label: true } }, event: { select: { id: true, title: true, organization: { select: { name: true } } } },
+        user: { select: { firstName: true, lastName: true, studentProfile: { select: { studentNumber: true } } } },
+      },
+    }) : [],
+    rosterIds.length ? db.organizationMember.findMany({
+      where: { organizationId: { in: rosterIds }, endedAt: null, role: { not: "ADVISER" } },
+      orderBy: { startedAt: "desc" }, take: 6,
+      select: {
+        id: true, role: true, startedAt: true, organization: { select: { id: true, name: true } },
+        user: { select: { firstName: true, lastName: true, studentProfile: { select: { studentNumber: true, yearLevel: true, course: true, program: { select: { code: true } } } } } },
+      },
+    }) : [],
+  ]);
+  return { reasons, newest };
 }

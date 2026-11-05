@@ -15,7 +15,6 @@ const ATT: Record<string, [string, Tone, IconName]> = {
   PRESENT: ["Present", "success", "checkmark-circle"], LATE: ["Late", "warning", "time"], ABSENT: ["Absent", "danger", "close-circle"], EXCUSED: ["Excused", "info", "document-text"],
 };
 const FEE: Record<string, [string, Tone]> = { PAID: ["Paid", "success"], PARTIAL: ["Partly paid", "warning"], UNPAID: ["Unpaid", "danger"], CREDIT: ["Credit", "info"] };
-const OBL: Record<string, [string, Tone]> = { PENDING: ["Pending", "warning"], IN_PROGRESS: ["In progress", "info"], COMPLETED: ["Completed", "success"], CANCELLED: ["Cancelled", "neutral"], WAIVED: ["Waived", "neutral"] };
 
 /** One member's record in the active organization. Each section appears only if the viewer's position allows it (server-decided). */
 export default function MemberDetail() {
@@ -69,20 +68,6 @@ export default function MemberDetail() {
                   })}
                 </ListGroup>
               ) : <Card><Empty icon="wallet-outline" title="No fees assessed" tone="success" /></Card>}
-            </>
-          ) : null}
-
-          {data.obligations ? (
-            <>
-              <SectionTitle>Obligations</SectionTitle>
-              {data.obligations.length ? (
-                <ListGroup>
-                  {data.obligations.map((o) => {
-                    const st = OBL[o.status] ?? [o.status, "neutral" as Tone];
-                    return <ListItem key={o.id} icon="list" tone={st[1]} title={o.title} subtitle={o.dueAt ? `Due ${fmtDate(o.dueAt)}` : "No due date"} right={<Badge label={st[0]} tone={st[1]} />} />;
-                  })}
-                </ListGroup>
-              ) : <Card><Empty icon="checkmark-done-outline" title="No obligations" tone="success" /></Card>}
             </>
           ) : null}
 

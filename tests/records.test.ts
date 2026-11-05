@@ -156,19 +156,17 @@ describe("attendance, obligations and consequences stay separate", () => {
 });
 
 describe("pages and event/document permissions per role", () => {
-  it("/obligations/manage loads for President, Secretary and Officer, loads read-only for the Adviser, and redirects everyone else", async () => {
+  it("Obligations was removed from the interface: both pages send everyone to the dashboard and the records are kept", async () => {
     const w = await makeWorld();
-    const { default: Page } = await import("@/app/(dashboard)/obligations/manage/page");
-    await db.obligation.create({ data: { organizationId: w.orgA.id, userId: w.a.MEMBER.id, title: "Form" } });
-    const render = async (id: string) => { await signInAs(id); return Page({ searchParams: Promise.resolve({}) }); };
-    for (const r of ["PRESIDENT", "SECRETARY", "OFFICER", "ADVISER"] as const) expect(await render(w.a[r].id), r).toBeTruthy();
-    for (const id of [w.a.MEMBER.id, w.a.TREASURER.id, w.a.AUDITOR.id]) await expect(render(id)).rejects.toThrow("NEXT_REDIRECT:/dashboard");
-    // The adviser can see the list but every management action is refused.
-    await signInAs(w.a.ADVISER.id);
-    await expect(createObligationAction({}, obligationForm(w.orgA.id, [w.a.MEMBER.id]))).rejects.toBeInstanceOf(ForbiddenError);
-    const ob = await db.obligation.findFirstOrThrow();
-    await completeObligationAction(form({ obligationId: ob.id, note: "" }));
-    expect((await db.obligation.findUniqueOrThrow({ where: { id: ob.id } })).status).toBe("PENDING");
+    const { default: Manage } = await import("@/app/(dashboard)/obligations/manage/page");
+    const { default: Mine } = await import("@/app/(dashboard)/obligations/page");
+    await db.obligation.create({ data: { organizationId: w.orgA.id, userId: w.a.MEMBER.id, title: "Old record" } });
+    for (const id of [w.a.PRESIDENT.id, w.a.ADVISER.id, w.a.MEMBER.id, w.admin.id]) {
+      await signInAs(id);
+      expect(() => Manage()).toThrow("NEXT_REDIRECT:/dashboard");
+      expect(() => Mine()).toThrow("NEXT_REDIRECT:/dashboard");
+    }
+    expect(await db.obligation.count()).toBe(1); // history untouched
   });
 
   it("an officer in A who is a member in B can create events and upload documents only in A; the creator is the signed-in user", async () => {
